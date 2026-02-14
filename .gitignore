@@ -1,0 +1,82 @@
+# ===========================================
+# ARCHIVOS DE CONFIGURACIÓN SENSIBLES
+# ===========================================
+# NUNCA subir archivos con claves API
+.env
+config.env
+*.env
+secrets.json
+api_keys.txt
+
+# ===========================================
+# ARCHIVOS DE PYTHON
+# ===========================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ===========================================
+# ENTORNOS VIRTUALES
+# ===========================================
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# ===========================================
+# ARCHIVOS DE DATOS Y LOGS
+# ===========================================
+*.log
+logs/
+data/
+backtest_results/
+trading_logs/
+
+# ===========================================
+# ARCHIVOS DE EXCEL Y DATOS
+# ===========================================
+*.xlsx
+*.csv
+backtest_trades_with_ml.xlsx
+
+# ===========================================
+# ARCHIVOS DEL SISTEMA
+# ===========================================
+.DS_Store
+Thumbs.db
+*.tmp
+*.temp
+
+# ===========================================
+# IDE Y EDITORES
+# ===========================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ===========================================
+# ARCHIVOS DE CONFIGURACIÓN ESPECÍFICOS
+# ===========================================
+config_local.py
+settings_local.py

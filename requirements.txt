@@ -1,0 +1,41 @@
+# ===========================================
+# DEPENDENCIAS DEL BOT DE TRADING
+# ===========================================
+
+# API de Binance
+python-binance==1.0.19
+
+# Análisis de datos
+pandas==2.0.3
+numpy==1.24.3
+
+# Indicadores técnicos
+pandas-ta==0.3.14b0
+
+# Machine Learning
+scikit-learn==1.3.0
+
+# Exportación a Excel
+openpyxl==3.1.2
+
+# Variables de entorno
+python-dotenv==1.0.0
+
+# Análisis técnico (alternativo)
+TA-Lib==0.4.28
+
+# Logging y utilidades
+colorama==0.4.6
+
+# Notificaciones Telegram
+python-telegram-bot==20.7
+
+# Dashboard Web
+streamlit==1.29.0
+plotly==5.18.0
+
+# Persistencia de modelos ML
+joblib==1.3.2
+
+# Visualización (monitor)
+matplotlib==3.8.0
