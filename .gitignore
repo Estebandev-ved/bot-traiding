@@ -86,3 +86,4 @@ secrets/
 serviceAccountKey*.json
 .firebaserc
 config.env
+datos/

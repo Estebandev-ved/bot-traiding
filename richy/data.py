@@ -5,10 +5,17 @@ import pandas as pd
 
 def make_exchange(name: str = "binance", futures: bool = False, **opts):
     import ccxt  # opcional
-    cfg = {"enableRateLimit": True, **opts}
+    mirror = opts.pop("mirror", None)          # p. ej. data-api.binance.vision si api.binance.com da 451
+    cfg = {"enableRateLimit": True, "requests_trust_env": True, **opts}  # respeta HTTPS_PROXY
     if futures:
         cfg["options"] = {"defaultType": "swap", **cfg.get("options", {})}
-    return getattr(ccxt, name)(cfg)
+    ex = getattr(ccxt, name)(cfg)
+    if mirror and name == "binance":
+        for k in ("public", "private", "v1", "v3"):
+            if k in ex.urls["api"]:
+                ex.urls["api"][k] = f"https://{mirror}/api/v3"
+        ex.options.update({"fetchMarkets": ["spot"], "fetchCurrencies": False})
+    return ex
 
 
 def fetch_ohlcv_paged(ex, symbol: str, timeframe: str = "1h", since_ms: int = None, limit_total: int = 5000) -> pd.DataFrame:

@@ -10,9 +10,18 @@ Paquete `richy/` (el bot anterior `bot-richy.py` sigue intacto).
 | Tendencia+ATR, reversión a la media, grid, arbitraje de funding | `strategies.py`, `backtest.py` | Probado en datos sintéticos |
 | Régimen (reglas; LightGBM opcional) que activa una estrategia u otra | `richy/regime.py` | Reglas probadas; LightGBM sin probar aquí |
 | Órdenes límite, reintentos sin duplicar, conciliación | `richy/execution.py` | Probado con exchange simulado |
-| Datos ccxt (REST, WebSocket, funding, open interest) | `richy/data.py` | **Sin probar contra exchanges reales** |
+| Datos ccxt: velas reales de Binance a CSV (`python -m richy.download`) | `richy/data.py`, `richy/download.py` | Velas probadas con datos reales. WebSocket, funding y open interest sin probar |
 | Firestore + panel con interruptores por estrategia | `richy/cloud.py`, `web/` | Panel probado en modo demo; Firebase real sin probar |
 | TimescaleDB, Grafana, Docker | `infra/`, `docker-compose.yml` | Sin probar |
+
+## Bajar velas reales
+```bash
+python -m richy.download --symbol BTC/USDT --timeframe 1h --bars 8000
+# Si api.binance.com responde 451 (bloqueo por región, p. ej. servidores en EE. UU.):
+python -m richy.download --mirror data-api.binance.vision
+python -m richy.cli walkforward --csv datos/BTCUSDT_1h.csv
+```
+Funding (`--funding`) usa `fapi.binance.com`, que Binance también bloquea por región; ejecútalo desde tu PC o un VPS en Asia/Europa.
 
 ## Probar
 ```bash
