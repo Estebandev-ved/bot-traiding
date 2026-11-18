@@ -31,13 +31,25 @@ table{width:100%;border-collapse:collapse}th{color:var(--mut);font-weight:500;fo
 td{padding:11px 10px;border-top:1px solid var(--line)}.tag{padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600}.tag.l{background:#12392e;color:var(--up)}.tag.s{background:#3b1823;color:var(--dn)}
 .alert{display:none;margin-bottom:16px;border:1px solid #6b2236;background:#2a1018;color:#ffb3c0;border-radius:12px;padding:12px 16px}
 .demo{color:var(--gold);font-size:12px}
+.gate{position:fixed;inset:0;z-index:20;display:none;place-items:center;padding:20px;background:radial-gradient(900px 500px at 70% 0,#14203a99,transparent),var(--bg)}
+.gate .box{width:100%;max-width:400px;text-align:center;padding:34px 28px}.gate .logo{margin:0 auto 18px;width:52px;height:52px;font-size:22px;border-radius:14px}
+.gate h2{margin:0 0 6px;font-size:22px}.gate p{margin:0 0 22px;color:var(--mut)}
+.gbtn{width:100%;display:flex;gap:12px;align-items:center;justify-content:center;padding:13px 16px;border-radius:12px;border:1px solid var(--line);background:#fff;color:#1f1f1f;font:600 15px Inter,sans-serif;cursor:pointer}
+.gbtn svg{width:18px;height:18px;flex:none}.gbtn:hover{filter:brightness(.95)}.gbtn:disabled{opacity:.6;cursor:wait}.gmsg{margin-top:16px;font-size:13px;color:#ffb3c0;min-height:18px}
+.lnk{background:none;border:0;color:var(--mut);cursor:pointer;font:inherit;text-decoration:underline}
 @media(max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}.row{grid-template-columns:1fr}main{padding:16px}header{padding:14px 16px}}
 </style>
 </head>
 <body>
+<div class="gate" id="gate"><div class="card box">
+  <div class="logo">R</div><h2>Richy Terminal</h2><p>Acceso privado. Entra con tu cuenta de Google.</p>
+  <button class="gbtn" id="gbtn"><svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.6 5.9c4.4-4.1 7-10.1 7-17.6z"/><path fill="#FBBC05" d="M10.5 28.7c-.5-1.5-.8-3-.8-4.7s.3-3.2.8-4.7l-7.9-6.1C.9 16.4 0 20.1 0 24s.9 7.6 2.6 10.8l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.6-5.9c-2.1 1.4-4.9 2.3-8.3 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>Entrar con Google</button>
+  <div class="gmsg" id="gmsg"></div>
+  <button class="lnk" id="gswitch" style="display:none;margin-top:10px">Usar otra cuenta</button>
+</div></div>
 <header>
   <div class="brand"><div class="logo">R</div><div>Richy Terminal<small>Panel de trading y riesgo</small></div></div>
-  <div style="display:flex;gap:10px;align-items:center"><span class="demo" id="demo"></span><span class="pill"><i class="dot" id="dot"></i><span id="mode">—</span></span></div>
+  <div style="display:flex;gap:10px;align-items:center"><span class="demo" id="demo"></span><button class="lnk" id="logout" style="display:none">Salir</button><span class="pill"><i class="dot" id="dot"></i><span id="mode">—</span></span></div>
 </header>
 <main>
   <div class="alert" id="alert"></div>
@@ -50,8 +62,8 @@ td{padding:11px 10px;border-top:1px solid var(--line)}.tag{padding:2px 8px;borde
     <div style="overflow-x:auto"><table style="min-width:520px"><thead><tr><th>Cierre</th><th>Lado</th><th>Entrada</th><th>Salida</th><th>Motivo</th><th style="text-align:right">P&amp;L</th></tr></thead><tbody id="trades"></tbody></table></div></div>
 </main>
 <script type="module">
-// 1) Pega aquí la config de tu app web de Firebase (Consola > Configuración del proyecto > Tus apps).
-//    Sin config, el panel corre en modo DEMO con datos de ejemplo.
+// Opcional: pega aquí tu firebaseConfig. Si lo dejas en null, en Firebase Hosting se carga solo
+// desde /__/firebase/init.json. Sin ninguna config (abierto como archivo), corre en modo DEMO.
 const FIREBASE_CONFIG = null; // { apiKey:"...", authDomain:"...", projectId:"..." }
 
 const $ = s => document.querySelector(s), fmt = n => n.toLocaleString("es", {maximumFractionDigits: 2});
@@ -105,19 +117,47 @@ function demo() {
     state.trades.push({exit_time: new Date(Date.now() - (14 - i) * 3.6e6 * 5).toISOString(), side, entry: en, exit: en + pnl * 4, pnl, reason: ["señal", "stop", "señal"][i % 3]}); }
   state.status = {mode: "paper"}; $("#demo").textContent = "MODO DEMO · datos de ejemplo"; render();
 }
-async function live() {
+const gate = (msg = "", denied = false) => { $("#gate").style.display = "grid"; $("#gmsg").textContent = msg; $("#gswitch").style.display = denied ? "inline" : "none"; $("#gbtn").disabled = false; };
+async function loadConfig() {                       // 1) la que pegues arriba, 2) la que Firebase Hosting publica sola
+  if (FIREBASE_CONFIG) return FIREBASE_CONFIG;
+  try { const r = await fetch("/__/firebase/init.json"); if (r.ok) { const c = await r.json(); if (c.apiKey) return c; } } catch (e) {}
+  return null;
+}
+async function live(cfg) {
   const base = "https://www.gstatic.com/firebasejs/10.12.2/";
   const {initializeApp} = await import(base + "firebase-app.js");
   const fs = await import(base + "firebase-firestore.js"), au = await import(base + "firebase-auth.js");
-  const app = initializeApp(FIREBASE_CONFIG), db = fs.getFirestore(app), auth = au.getAuth(app);
-  await new Promise(res => au.onAuthStateChanged(auth, u => u ? res() : au.signInWithPopup(auth, new au.GoogleAuthProvider()).then(res)));
-  fs.onSnapshot(fs.doc(db, "status/current"), d => { state.status = d.data() || {}; render(); });
-  fs.onSnapshot(fs.query(fs.collection(db, "equity"), fs.orderBy("t"), fs.limitToLast(500)), q => { state.equity = q.docs.map(x => x.data()); render(); });
-  fs.onSnapshot(fs.query(fs.collection(db, "trades"), fs.orderBy("exit_time"), fs.limitToLast(50)), q => { state.trades = q.docs.map(x => x.data()); render(); });
-  fs.onSnapshot(fs.collection(db, "strategies"), q => { q.docs.forEach(x => state.strats[x.id] = !!x.data().enabled); render(); });
-  setFlag = async (k, v) => fs.setDoc(fs.doc(db, "strategies", k), {enabled: v});
+  const app = initializeApp(cfg), db = fs.getFirestore(app), auth = au.getAuth(app), provider = new au.GoogleAuthProvider();
+  provider.setCustomParameters({prompt: "select_account"});
+  let unsubs = [];
+  const stop = () => { unsubs.forEach(u => u()); unsubs = []; };
+  const deny = e => { if (e && e.code === "permission-denied") { stop(); gate("Esta cuenta (" + (auth.currentUser?.email || "") + ") no tiene permiso para ver el panel.", true); } };
+  const login = async () => {
+    $("#gbtn").disabled = true; $("#gmsg").textContent = "";
+    try { await au.signInWithPopup(auth, provider); }
+    catch (e) {
+      if (e.code === "auth/popup-blocked") return au.signInWithRedirect(auth, provider);
+      gate(e.code === "auth/popup-closed-by-user" ? "" : "No se pudo entrar: " + (e.code || e.message));
+    }
+  };
+  $("#gbtn").onclick = login;
+  $("#gswitch").onclick = async () => { await au.signOut(auth); gate(); };
+  $("#logout").onclick = () => au.signOut(auth);
+  au.onAuthStateChanged(auth, user => {
+    stop(); state.equity = []; state.trades = []; state.status = {};
+    if (!user) { $("#logout").style.display = "none"; render(); return gate(); }
+    $("#gate").style.display = "none"; $("#logout").style.display = "inline"; $("#demo").textContent = user.email;
+    unsubs = [
+      fs.onSnapshot(fs.doc(db, "status/current"), d => { state.status = d.data() || {}; render(); }, deny),
+      fs.onSnapshot(fs.query(fs.collection(db, "equity"), fs.orderBy("t"), fs.limitToLast(500)), q => { state.equity = q.docs.map(x => x.data()); render(); }, deny),
+      fs.onSnapshot(fs.query(fs.collection(db, "trades"), fs.orderBy("exit_time"), fs.limitToLast(50)), q => { state.trades = q.docs.map(x => x.data()); render(); }, deny),
+      fs.onSnapshot(fs.collection(db, "strategies"), q => { q.docs.forEach(x => state.strats[x.id] = !!x.data().enabled); render(); }, deny),
+    ];
+  });
+  setFlag = async (k, v) => { state.strats[k] = v; render(); try { await fs.setDoc(fs.doc(db, "strategies", k), {enabled: v}); } catch (e) { deny(e); } };
+  render();
 }
-FIREBASE_CONFIG ? live().catch(e => { console.error(e); demo(); }) : demo();
+loadConfig().then(cfg => cfg ? live(cfg).catch(e => { console.error(e); gate("No se pudo cargar Firebase. Recarga la página."); }) : demo());
 </script>
 </body>
 </html>
