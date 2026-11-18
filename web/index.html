@@ -157,7 +157,14 @@ async function live(cfg) {
   setFlag = async (k, v) => { state.strats[k] = v; render(); try { await fs.setDoc(fs.doc(db, "strategies", k), {enabled: v}); } catch (e) { deny(e); } };
   render();
 }
-loadConfig().then(cfg => cfg ? live(cfg).catch(e => { console.error(e); gate("No se pudo cargar Firebase. Recarga la página."); }) : demo());
+loadConfig().then(cfg => {
+  if (cfg) return live(cfg).catch(e => { console.error(e); gate("No se pudo cargar Firebase. Recarga la página."); });
+  if (location.protocol.startsWith("http")) {       // publicado en internet: nunca caer al demo en silencio
+    $("#gbtn").style.display = "none";
+    return gate("Falta registrar la app web de Firebase (Configuración del proyecto > Tus apps > Web). Luego vuelve a publicar.");
+  }
+  demo();                                           // abierto como archivo local: demo con datos de ejemplo
+});
 </script>
 </body>
 </html>
