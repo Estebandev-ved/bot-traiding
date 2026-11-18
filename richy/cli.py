@@ -4,7 +4,7 @@
   python -m richy.cli grid | funding
   python -m richy.cli live --symbol BTC/USDT --exchange binance [--real]   (paper por defecto)
 """
-import argparse, json, time
+import argparse, json, os, time
 import pandas as pd
 from . import data
 from .backtest import run_backtest, walk_forward, backtest_grid, backtest_funding_arb, CostModel
@@ -40,6 +40,7 @@ def main(argv=None):
     p.add_argument("--csv"); p.add_argument("--strategy", default="regime", choices=["trend", "meanrev", "regime"])
     p.add_argument("--symbol", default="BTC/USDT"); p.add_argument("--exchange", default="binance")
     p.add_argument("--timeframe", default="1h"); p.add_argument("--real", action="store_true")
+    p.add_argument("--mirror", default=os.getenv("BINANCE_MIRROR"))
     a = p.parse_args(argv)
 
     if a.cmd == "backtest":
@@ -63,31 +64,47 @@ def main(argv=None):
 
 
 def live(a):
-    """Bucle en vivo. Paper por defecto: solo con --real y claves coloca órdenes reales."""
-    from .execution import Executor, PaperExchange, reconcile
+    """Paper trading en vivo (sin dinero). Cada ciclo: velas cerradas -> simulación -> Firestore."""
+    from .paper import PaperSession
+    if a.real:
+        raise SystemExit("El modo --real todavía no está habilitado: primero hay que validar la estrategia en paper.")
     sink = get_sink()
-    ex = data.make_exchange(a.exchange) if a.real else PaperExchange()
-    feed = data.make_exchange(a.exchange)
-    risk = RiskManager(RiskConfig(), equity=10_000.0)
-    exe = Executor(ex, risk)
-    pos = {}
+    feed = data.make_exchange(a.exchange, mirror=a.mirror)
+    tf_s = feed.parse_timeframe(a.timeframe)
+    session = PaperSession()
+    risk = RiskManager(RiskConfig(), equity=session.state["equity0"])
+    sent_eq, sent_tr = set(), set()
+    print(f"[paper] {a.symbol} {a.timeframe} · capital inicial {session.state['equity0']:,.0f} USDT · Ctrl+C para detener")
     while not risk.killed:
         try:
-            df = data.fetch_ohlcv_paged(feed, a.symbol, a.timeframe, limit_total=600)
+            df = data.fetch_ohlcv_paged(feed, a.symbol, a.timeframe, limit_total=1000)
             risk.api_ok()
         except Exception as e:
-            risk.api_error(str(e)); time.sleep(10); continue
-        age = time.time() - df.index[-1].timestamp()
-        risk.check_data_age(age + 0 if a.timeframe == "1m" else max(0, age - 3600))
-        risk.check_price(df["close"].iloc[-2], df["close"].iloc[-1])
+            risk.api_error(str(e)); print("[error datos]", str(e)[:120]); time.sleep(10); continue
+        closed = df.iloc[:-1]                                      # la última vela sigue abierta: no se usa
+        risk.check_data_age(time.time() - closed.index[-1].timestamp() - 2 * tf_s)
+        risk.check_price(closed["close"].iloc[-2], closed["close"].iloc[-1])
+        if risk.killed:
+            break
         flags = sink.strategy_flags(["trend", "meanrev"])
-        sig = build(a, df, enabled=flags).generate(df).iloc[-2]
-        risk.update(df.index[-1], 10_000.0)
-        sink.status(symbol=a.symbol, signal=int(sig["signal"]), killed=risk.killed, kill_reason=risk.kill_reason,
-                    halted_today=risk.halted_today, mode="real" if a.real else "paper")
-        print(f"[{df.index[-1]}] señal={int(sig['signal'])} kill={risk.killed}")
+        res = session.update(closed, build(a, closed, enabled=flags))
+        eq = res["equity"]
+        new_pts = [(ts.timestamp(), v) for ts, v in eq.items() if ts.timestamp() not in sent_eq]
+        if new_pts:
+            sink.equity_batch(new_pts); sent_eq.update(t for t, _ in new_pts)
+        for t in res["trades"]:
+            key = (t["entry_time"], t["exit_time"])
+            if key not in sent_tr:
+                sink.trade(t); sent_tr.add(key)
+        m, rk, op = res["metrics"], res["risk"], res["open"]
+        sink.status(symbol=a.symbol, mode="paper", equity=float(eq.iloc[-1]), total_return=m["total_return"],
+                    max_drawdown=m["max_drawdown"], trades=m["trades"], killed=rk["killed"], kill_reason=rk["kill_reason"],
+                    halted_today=rk["halted_today"], position=(None if not op else {k: (v.isoformat() if hasattr(v, "isoformat") else v) for k, v in op.items()}))
+        print(f"[{closed.index[-1]}] capital={eq.iloc[-1]:,.2f} ret={m['total_return']:+.2%} ops={m['trades']} "
+              f"pos={'LONG' if op and op['side']>0 else 'SHORT' if op else '-'} kill={rk['killed']}")
         time.sleep(60)
     print("KILL SWITCH:", risk.kill_reason)
+    sink.status(killed=True, kill_reason=risk.kill_reason)
 
 
 if __name__ == "__main__":

@@ -109,3 +109,55 @@ def test_reconcile_finds_differences():
     assert reconcile({"BTC": 0.5}, {"BTC": 0.5}) == []
     d = reconcile({"BTC": 0.5}, {"BTC": 0.0, "ETH": 1.0})
     assert {x["symbol"] for x in d} == {"BTC", "ETH"}
+
+
+# ---------------- paper trading ----------------
+from richy.paper import PaperSession
+from richy.regime import rule_regime
+
+
+def _strat(enabled=None, df=None):
+    return RegimeSwitched(regimes=rule_regime(df), routes={"trend": TrendATR(), "range": MeanReversion()}, enabled=enabled)
+
+
+def test_open_position_is_kept_and_not_counted_as_trade():
+    df = data.synthetic_ohlcv(1500)
+    r = run_backtest(df, TrendATR(), close_at_end=False)
+    assert all(t["reason"] != "end" for t in r["trades"])
+    r2 = run_backtest(df, TrendATR())
+    assert len(r2["trades"]) >= len(r["trades"])
+
+
+def test_paper_is_deterministic_and_past_is_frozen(tmp_path):
+    df = data.synthetic_ohlcv(1600)
+    path = str(tmp_path / "paper.json")
+    s = PaperSession(path, 10_000)
+    s.state["start"] = df.index[900].isoformat()            # arranca a mitad del histórico
+    a = s.update(df.iloc[:1200], _strat(None, df.iloc[:1200]))
+    # más tarde: llegan 300 velas nuevas y el usuario APAGA todas las estrategias desde el panel
+    b = s.update(df.iloc[:1500], _strat({"trend": False, "meanrev": False}, df.iloc[:1500]))
+    common = a["equity"].index.intersection(b["equity"].index)
+    pd.testing.assert_series_equal(a["equity"].loc[common].iloc[:-3], b["equity"].loc[common].iloc[:-3])   # el pasado no cambia
+    done_a = {(t["entry_time"], t["exit_time"]) for t in a["trades"]}
+    assert done_a <= {(t["entry_time"], t["exit_time"]) for t in b["trades"]}                              # no desaparecen operaciones
+    # con todo apagado, las barras NUEVAS no abren posiciones nuevas
+    new_entries = [t for t in b["trades"] if t["entry_time"] > df.index[1200]]   # la barra 1200 ejecuta la señal congelada de la 1199
+    assert new_entries == []
+
+
+def test_paper_state_survives_restart(tmp_path):
+    df = data.synthetic_ohlcv(1300)
+    path = str(tmp_path / "p.json")
+    s1 = PaperSession(path); s1.state["start"] = df.index[800].isoformat()
+    r1 = s1.update(df, _strat(None, df))
+    r2 = PaperSession(path).update(df, _strat(None, df))      # reinicio: mismo estado, mismo resultado
+    pd.testing.assert_series_equal(r1["equity"], r2["equity"])
+    assert r1["open"] == r2["open"]
+
+
+def test_paper_starts_at_initial_capital_and_respects_risk_limits(tmp_path):
+    df = data.synthetic_ohlcv(1300)
+    s = PaperSession(str(tmp_path / "q.json"), 5_000.0)
+    r = s.update(df, _strat(None, df))
+    assert r["equity"].iloc[0] == 5_000.0
+    assert min(r["equity"]) > 0

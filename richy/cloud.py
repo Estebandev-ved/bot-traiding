@@ -14,6 +14,7 @@ class NullSink:
     def status(self, **kw): pass
     def equity_point(self, ts, value): pass
     def trade(self, t: dict): pass
+    def equity_batch(self, points): pass
     def strategy_flags(self, names): return {n: True for n in names}
 
 
@@ -33,8 +34,18 @@ class FirebaseSink:
         self.db.collection("equity").document(str(int(ts))).set({"t": int(ts), "v": float(value)})
 
     def trade(self, t: dict):
+        """Id determinista: reenviar la misma operación la sobrescribe, nunca la duplica."""
         clean = {k: (v.isoformat() if hasattr(v, "isoformat") else v) for k, v in t.items()}
-        self.db.collection("trades").add(clean)
+        tid = f"{int(t['entry_time'].timestamp())}_{int(t['exit_time'].timestamp())}"
+        self.db.collection("trades").document(tid).set(clean)
+
+    def equity_batch(self, points):
+        col = self.db.collection("equity")
+        for i in range(0, len(points), 400):
+            b = self.db.batch()
+            for ts, v in points[i:i + 400]:
+                b.set(col.document(str(int(ts))), {"t": int(ts), "v": float(v)})
+            b.commit()
 
     def strategy_flags(self, names):
         out = {}

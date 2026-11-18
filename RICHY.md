@@ -14,6 +14,16 @@ Paquete `richy/` (el bot anterior `bot-richy.py` sigue intacto).
 | Firestore + panel con interruptores por estrategia | `richy/cloud.py`, `web/` | Panel probado en modo demo; Firebase real sin probar |
 | TimescaleDB, Grafana, Docker | `infra/`, `docker-compose.yml` | Sin probar |
 
+## Paper trading en vivo (sin dinero)
+```powershell
+$env:GOOGLE_APPLICATION_CREDENTIALS="secrets\serviceAccountKey.json"
+python -m richy.cli live --symbol BTC/USDT            # si Binance da 451: añade --mirror data-api.binance.vision
+```
+Cada vela cerrada simula las decisiones del bot con comisiones, slippage y límites de riesgo, y sube a Firestore el
+capital, las operaciones y el estado. La sesión arranca con 10,000 USDT simulados y sin posición, y se guarda en
+`paper_state.json` (bórralo para empezar de cero). Las señales ya tomadas quedan congeladas: apagar una estrategia
+desde el panel solo afecta a las velas nuevas. `--real` está bloqueado a propósito hasta validar la estrategia.
+
 ## Bajar velas reales
 ```bash
 python -m richy.download --symbol BTC/USDT --timeframe 1h --bars 8000

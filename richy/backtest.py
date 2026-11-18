@@ -35,8 +35,9 @@ def metrics(equity: pd.Series, trades: list, bars_per_year: int = 8760) -> dict:
 
 
 def run_backtest(df: pd.DataFrame, strategy, equity0: float = 10_000.0, cost: CostModel = None,
-                 risk: RiskConfig = None, start: int = 0, interval: str = "1h"):
-    """Opera solo desde la barra `start` (las anteriores sirven de calentamiento)."""
+                 risk: RiskConfig = None, start: int = 0, interval: str = "1h", close_at_end: bool = True):
+    """Opera solo desde la barra `start` (las anteriores sirven de calentamiento).
+    close_at_end=False deja abierta la posición final (paper trading en vivo)."""
     cost = cost or CostModel()
     rng = np.random.default_rng(cost.seed)
     rm = RiskManager(risk, equity0)
@@ -86,12 +87,16 @@ def run_backtest(df: pd.DataFrame, strategy, equity0: float = 10_000.0, cost: Co
                 trail = c[i] - s * sdist[i] if not np.isnan(sdist[i]) else stop
                 stop = max(stop, trail) if s > 0 else min(stop, trail)
         equity[i] = cash + qty * (c[i] - entry)
-    if qty != 0:
+    open_pos = None
+    if qty != 0 and close_at_end:
         close_pos(len(df) - 1, c[-1], "end")
         equity[-1] = cash
+    elif qty != 0:
+        open_pos = {"side": int(np.sign(qty)), "qty": abs(float(qty)), "entry": float(entry), "stop": float(stop),
+                    "since": idx[entry_i]}
     eq = pd.Series(equity, index=idx)[max(start, 1) - 1:]
     return {"equity": eq, "trades": trades, "metrics": metrics(eq, trades, BARS_PER_YEAR.get(interval, 8760)),
-            "risk": rm.state()}
+            "risk": rm.state(), "open": open_pos}
 
 
 def walk_forward(df: pd.DataFrame, make_strategy, grid: dict, train_bars: int, test_bars: int,

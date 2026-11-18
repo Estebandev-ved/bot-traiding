@@ -87,3 +87,4 @@ serviceAccountKey*.json
 .firebaserc
 config.env
 datos/
+paper_state.json
