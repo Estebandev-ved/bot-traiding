@@ -60,6 +60,7 @@ def load_model(filename=MODEL_FILENAME):
 # Cargar variables de entorno
 from dotenv import load_dotenv
 load_dotenv('config.env')
+from settings_store import apply_to_module
 
 # === MÓDULOS PERSONALIZADOS ===
 try:
@@ -669,6 +670,15 @@ def main_loop():
     try:
         while True:
             iteration_count += 1
+            # 0) recargar configuración editada desde el dashboard
+            try:
+                _cfg = apply_to_module(globals())
+                if not _cfg.get('bot_enabled', True):
+                    print("[MAIN] Bot en PAUSA desde el dashboard. Esperando...")
+                    time.sleep(10)
+                    continue
+            except Exception as e:
+                print(f"[MAIN] No se pudo recargar configuración: {e}")
             # 1) actualizar datos
             df = fetch_klines_to_df(client, SYMBOL, INTERVAL, LOOKBACK_BARS)
             df = compute_indicators(df)
