@@ -64,7 +64,15 @@ td{padding:11px 10px;border-top:1px solid var(--line)}.tag{padding:2px 8px;borde
 <script type="module">
 // Opcional: pega aquí tu firebaseConfig. Si lo dejas en null, en Firebase Hosting se carga solo
 // desde /__/firebase/init.json. Sin ninguna config (abierto como archivo), corre en modo DEMO.
-const FIREBASE_CONFIG = null; // { apiKey:"...", authDomain:"...", projectId:"..." }
+const FIREBASE_CONFIG = {   // pública por diseño: la seguridad la dan el login de Google y firestore.rules
+  apiKey: "AIzaSyCaIlx-mQaj_Hm1LLbcfQ7A95_BA92w9pA",
+  authDomain: "bot-richy.firebaseapp.com",
+  projectId: "bot-richy",
+  storageBucket: "bot-richy.firebasestorage.app",
+  messagingSenderId: "748225454961",
+  appId: "1:748225454961:web:8aca03a4c8f8df13da8cd0",
+  measurementId: "G-YP0VYC31WT"
+};
 
 const $ = s => document.querySelector(s), fmt = n => n.toLocaleString("es", {maximumFractionDigits: 2});
 const state = {equity: [], trades: [], status: {}, strats: {trend: true, meanrev: true, grid: false, funding: true}};
@@ -119,7 +127,7 @@ function demo() {
 }
 const gate = (msg = "", denied = false) => { $("#gate").style.display = "grid"; $("#gmsg").textContent = msg; $("#gswitch").style.display = denied ? "inline" : "none"; $("#gbtn").disabled = false; };
 async function loadConfig() {                       // 1) la que pegues arriba, 2) la que Firebase Hosting publica sola
-  if (FIREBASE_CONFIG) return FIREBASE_CONFIG;
+  if (FIREBASE_CONFIG && location.protocol.startsWith("http")) return FIREBASE_CONFIG;
   try { const r = await fetch("/__/firebase/init.json"); if (r.ok) { const c = await r.json(); if (c.apiKey) return c; } } catch (e) {}
   return null;
 }
