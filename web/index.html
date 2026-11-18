@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Richy Terminal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#07090d;--panel:#0d1118;--panel2:#121823;--line:#1d2635;--tx:#e8edf5;--mut:#7d8aa0;--gold:#e7c26b;--up:#2ee59d;--dn:#ff5c7a;--blue:#5b8cff}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(1200px 600px at 80% -10%,#14203a55,transparent),var(--bg);color:var(--tx);font:14px/1.5 Inter,system-ui,sans-serif}
+.mono{font-family:'JetBrains Mono',monospace}
+header{display:flex;align-items:center;justify-content:space-between;padding:18px 28px;border-bottom:1px solid var(--line);position:sticky;top:0;background:#07090dd9;backdrop-filter:blur(10px);z-index:5}
+.brand{display:flex;gap:12px;align-items:center;font-weight:700;letter-spacing:.3px}
+.logo{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--gold),#b8872e);display:grid;place-items:center;color:#1a1305;font-weight:800}
+.brand small{display:block;color:var(--mut);font-weight:500;font-size:11px;letter-spacing:1.5px;text-transform:uppercase}
+.pill{display:inline-flex;gap:8px;align-items:center;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--panel);font-size:12px;color:var(--mut)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--up);box-shadow:0 0 10px var(--up)}.dot.off{background:var(--dn);box-shadow:0 0 10px var(--dn)}
+main{max-width:1280px;margin:0 auto;padding:24px 28px 60px}
+.grid{display:grid;gap:16px}.kpis{grid-template-columns:repeat(5,1fr)}
+.card{min-width:0;background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:16px;padding:18px 20px}
+.k .l{color:var(--mut);font-size:11px;letter-spacing:1.2px;text-transform:uppercase}.k .v{font-size:26px;font-weight:600;margin-top:6px}
+.k .s{font-size:12px;margin-top:2px}.up{color:var(--up)}.dn{color:var(--dn)}
+.row{grid-template-columns:2fr 1fr;margin-top:16px}h3{margin:0 0 14px;font-size:13px;letter-spacing:1.2px;text-transform:uppercase;color:var(--mut);font-weight:600}
+svg{width:100%;height:280px;display:block}
+.strat{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}.strat:last-child{border:0}
+.strat b{display:block}.strat span{color:var(--mut);font-size:12px}
+.sw{width:46px;height:26px;border-radius:99px;background:#222c3d;position:relative;cursor:pointer;border:0;transition:.2s}.sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#8896ad;transition:.2s}
+.sw.on{background:#17543f}.sw.on::after{left:23px;background:var(--up)}
+table{width:100%;border-collapse:collapse}th{color:var(--mut);font-weight:500;font-size:11px;letter-spacing:1px;text-transform:uppercase;text-align:left;padding:8px 10px}
+td{padding:11px 10px;border-top:1px solid var(--line)}.tag{padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600}.tag.l{background:#12392e;color:var(--up)}.tag.s{background:#3b1823;color:var(--dn)}
+.alert{display:none;margin-bottom:16px;border:1px solid #6b2236;background:#2a1018;color:#ffb3c0;border-radius:12px;padding:12px 16px}
+.demo{color:var(--gold);font-size:12px}
+@media(max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}.row{grid-template-columns:1fr}main{padding:16px}header{padding:14px 16px}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><div class="logo">R</div><div>Richy Terminal<small>Panel de trading y riesgo</small></div></div>
+  <div style="display:flex;gap:10px;align-items:center"><span class="demo" id="demo"></span><span class="pill"><i class="dot" id="dot"></i><span id="mode">—</span></span></div>
+</header>
+<main>
+  <div class="alert" id="alert"></div>
+  <div class="grid kpis" id="kpis"></div>
+  <div class="grid row">
+    <div class="card"><h3>Curva de capital</h3><svg id="chart" viewBox="0 0 800 280" preserveAspectRatio="none"></svg></div>
+    <div class="card"><h3>Estrategias</h3><div id="strats"></div></div>
+  </div>
+  <div class="card" style="margin-top:16px"><h3>Historial de operaciones</h3>
+    <div style="overflow-x:auto"><table style="min-width:520px"><thead><tr><th>Cierre</th><th>Lado</th><th>Entrada</th><th>Salida</th><th>Motivo</th><th style="text-align:right">P&amp;L</th></tr></thead><tbody id="trades"></tbody></table></div></div>
+</main>
+<script type="module">
+// 1) Pega aquí la config de tu app web de Firebase (Consola > Configuración del proyecto > Tus apps).
+//    Sin config, el panel corre en modo DEMO con datos de ejemplo.
+const FIREBASE_CONFIG = null; // { apiKey:"...", authDomain:"...", projectId:"..." }
+
+const $ = s => document.querySelector(s), fmt = n => n.toLocaleString("es", {maximumFractionDigits: 2});
+const state = {equity: [], trades: [], status: {}, strats: {trend: true, meanrev: true, grid: false, funding: true}};
+const LABELS = {trend: ["Seguir tendencia", "EMA + ADX, stop por ATR"], meanrev: ["Reversión a la media", "Z-score, rango"],
+                grid: ["Grid trading", "Órdenes escalonadas en rango"], funding: ["Arbitraje de funding", "Spot largo + futuro corto"]};
+let setFlag = async (k, v) => { state.strats[k] = v; render(); };
+
+function stats() {
+  const e = state.equity.map(p => p.v); if (e.length < 3) return {};
+  let peak = e[0], mdd = 0; const r = [];
+  e.forEach((v, i) => { peak = Math.max(peak, v); mdd = Math.min(mdd, v / peak - 1); if (i) r.push(v / e[i - 1] - 1); });
+  const m = r.reduce((a, b) => a + b, 0) / r.length, sd = Math.sqrt(r.reduce((a, b) => a + (b - m) ** 2, 0) / r.length) || 1;
+  const w = state.trades.filter(t => t.pnl > 0).length;
+  return {ret: e.at(-1) / e[0] - 1, pnl: e.at(-1) - e[0], mdd, sharpe: m / sd * Math.sqrt(8760), last: e.at(-1), win: state.trades.length ? w / state.trades.length : 0};
+}
+function render() {
+  const s = stats(), st = state.status, cls = v => v >= 0 ? "up" : "dn", sg = v => (v >= 0 ? "+" : "") + fmt(v);
+  $("#kpis").innerHTML = [
+    ["Capital", "$" + fmt(s.last || 0), `<span class="${cls(s.pnl||0)}">${sg(s.pnl || 0)} USDT</span>`],
+    ["Retorno", sg((s.ret || 0) * 100) + "%", `<span class="${cls(s.ret||0)}">acumulado</span>`],
+    ["Drawdown máx.", fmt((s.mdd || 0) * 100) + "%", `<span class="dn">peor caída</span>`],
+    ["Sharpe", fmt(s.sharpe || 0), `<span style="color:var(--mut)">ganancia vs. riesgo</span>`],
+    ["Win rate", fmt((s.win || 0) * 100) + "%", `<span style="color:var(--mut)">${state.trades.length} operaciones</span>`],
+  ].map(([l, v, sub]) => `<div class="card k"><div class="l">${l}</div><div class="v mono">${v}</div><div class="s">${sub}</div></div>`).join("");
+  const off = st.killed || st.halted_today;
+  $("#dot").className = "dot" + (off ? " off" : ""); $("#mode").textContent = st.killed ? "KILL SWITCH" : st.halted_today ? "PAUSADO (límite diario)" : (st.mode || "paper").toUpperCase();
+  const al = $("#alert"); al.style.display = off ? "block" : "none"; al.textContent = st.killed ? "Kill switch activado: " + (st.kill_reason || "") : "Pérdida diaria máxima alcanzada. El bot reanuda mañana.";
+  $("#strats").innerHTML = Object.entries(LABELS).map(([k, [n, d]]) =>
+    `<div class="strat"><div><b>${n}</b><span>${d}</span></div><button class="sw ${state.strats[k] ? "on" : ""}" data-k="${k}" aria-label="${n}"></button></div>`).join("");
+  document.querySelectorAll(".sw").forEach(b => b.onclick = () => setFlag(b.dataset.k, !state.strats[b.dataset.k]));
+  $("#trades").innerHTML = state.trades.slice(-12).reverse().map(t => `<tr><td class="mono">${(t.exit_time || "").slice(0, 16).replace("T", " ")}</td>
+    <td><span class="tag ${t.side > 0 ? "l" : "s"}">${t.side > 0 ? "LONG" : "SHORT"}</span></td><td class="mono">${fmt(t.entry)}</td><td class="mono">${fmt(t.exit)}</td>
+    <td>${t.reason}</td><td class="mono ${cls(t.pnl)}" style="text-align:right">${sg(t.pnl)}</td></tr>`).join("") || `<tr><td colspan="6" style="color:var(--mut)">Sin operaciones todavía</td></tr>`;
+  chart();
+}
+function chart() {
+  const e = state.equity.map(p => p.v), svg = $("#chart"); if (e.length < 2) return;
+  const lo = Math.min(...e), hi = Math.max(...e), W = 800, H = 280, X = i => i / (e.length - 1) * W, Y = v => H - 16 - (v - lo) / (hi - lo || 1) * (H - 40);
+  const d = e.map((v, i) => `${i ? "L" : "M"}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(""), up = e.at(-1) >= e[0], c = up ? "#2ee59d" : "#ff5c7a";
+  let peak = -1e18; const dd = e.map((v, i) => (peak = Math.max(peak, v), `${i ? "L" : "M"}${X(i).toFixed(1)},${Y(peak).toFixed(1)}`)).join("");
+  svg.innerHTML = `<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c}" stop-opacity=".28"/><stop offset="1" stop-color="${c}" stop-opacity="0"/></linearGradient></defs>
+  ${[0, 1, 2, 3].map(i => `<line x1="0" x2="${W}" y1="${20 + i * 75}" y2="${20 + i * 75}" stroke="#1d2635" stroke-dasharray="3 5"/>`).join("")}
+  <path d="${dd}" fill="none" stroke="#e7c26b" stroke-opacity=".45" stroke-width="1" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>
+  <path d="${d}L${W},${H}L0,${H}Z" fill="url(#g)"/><path d="${d}" fill="none" stroke="${c}" stroke-width="2" vector-effect="non-scaling-stroke"/>`;
+}
+function demo() {
+  let v = 10000, seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 240; i++) { v *= 1 + (rnd() - 0.46) * 0.012; state.equity.push({t: i, v}); }
+  for (let i = 0; i < 14; i++) { const side = rnd() > .4 ? 1 : -1, en = 60000 + rnd() * 3000, pnl = (rnd() - .4) * 220;
+    state.trades.push({exit_time: new Date(Date.now() - (14 - i) * 3.6e6 * 5).toISOString(), side, entry: en, exit: en + pnl * 4, pnl, reason: ["señal", "stop", "señal"][i % 3]}); }
+  state.status = {mode: "paper"}; $("#demo").textContent = "MODO DEMO · datos de ejemplo"; render();
+}
+async function live() {
+  const base = "https://www.gstatic.com/firebasejs/10.12.2/";
+  const {initializeApp} = await import(base + "firebase-app.js");
+  const fs = await import(base + "firebase-firestore.js"), au = await import(base + "firebase-auth.js");
+  const app = initializeApp(FIREBASE_CONFIG), db = fs.getFirestore(app), auth = au.getAuth(app);
+  await new Promise(res => au.onAuthStateChanged(auth, u => u ? res() : au.signInWithPopup(auth, new au.GoogleAuthProvider()).then(res)));
+  fs.onSnapshot(fs.doc(db, "status/current"), d => { state.status = d.data() || {}; render(); });
+  fs.onSnapshot(fs.query(fs.collection(db, "equity"), fs.orderBy("t"), fs.limitToLast(500)), q => { state.equity = q.docs.map(x => x.data()); render(); });
+  fs.onSnapshot(fs.query(fs.collection(db, "trades"), fs.orderBy("exit_time"), fs.limitToLast(50)), q => { state.trades = q.docs.map(x => x.data()); render(); });
+  fs.onSnapshot(fs.collection(db, "strategies"), q => { q.docs.forEach(x => state.strats[x.id] = !!x.data().enabled); render(); });
+  setFlag = async (k, v) => fs.setDoc(fs.doc(db, "strategies", k), {enabled: v});
+}
+FIREBASE_CONFIG ? live().catch(e => { console.error(e); demo(); }) : demo();
+</script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+numpy>=1.26
+pandas>=2.1
+ccxt>=4.3          # datos y ejecución multi-exchange (incluye ccxt.pro para WebSocket)
+firebase-admin>=6.5
+lightgbm>=4.3      # opcional: detector de régimen
+python-dotenv>=1.0
+pytest>=8.0
