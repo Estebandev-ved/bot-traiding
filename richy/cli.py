@@ -25,39 +25,41 @@ def real_csv(a, funding=False):
 
 
 def load(a):
-    return pd.read_csv(real_csv(a), index_col=0, parse_dates=True)
+    return data.read_csv_ts(real_csv(a))
 
 
 def build(a, df, enabled=None):
     if a.strategy == "trend":
-        return TrendATR()
+        return TrendATR(allow_short=False)      # solo largos: compatible con spot y mejor Sharpe en BTC (4 h)
     if a.strategy == "meanrev":
         return MeanReversion()
     return RegimeSwitched(regimes=get_regimes(df), routes={"trend": TrendATR(), "range": MeanReversion()}, enabled=enabled)
 
 
-def show(title, m):
+def show(title, m, risk=None):
     print(f"\n== {title} ==")
+    if risk and risk.get("killed"):
+        print(f"AVISO: el kill switch apagó el bot durante la prueba ({risk['kill_reason']}); el resultado queda truncado.")
     print(json.dumps({k: (round(v, 4) if isinstance(v, float) else v) for k, v in m.items()}, indent=2))
 
 
 def main(argv=None):
     p = argparse.ArgumentParser()
     p.add_argument("cmd", choices=["backtest", "walkforward", "grid", "funding", "live"])
-    p.add_argument("--csv"); p.add_argument("--strategy", default="regime", choices=["trend", "meanrev", "regime"])
+    p.add_argument("--csv"); p.add_argument("--strategy", default="trend", choices=["trend", "meanrev", "regime"])
     p.add_argument("--symbol", default="BTC/USDT"); p.add_argument("--exchange", default="binance")
-    p.add_argument("--timeframe", default="1h"); p.add_argument("--real", action="store_true")
+    p.add_argument("--timeframe", default="4h"); p.add_argument("--real", action="store_true")
     p.add_argument("--mirror", default=os.getenv("BINANCE_MIRROR"))
     p.add_argument("--no-news", action="store_true", help="desactiva el filtro de noticias")
     a = p.parse_args(argv)
 
     if a.cmd == "backtest":
-        df = load(a); r = run_backtest(df, build(a, df), cost=CostModel())
-        show(f"Backtest {a.strategy}", r["metrics"])
+        df = load(a); r = run_backtest(df, build(a, df), cost=CostModel(), interval=a.timeframe)
+        show(f"Backtest {a.strategy} {a.timeframe}", r["metrics"], r["risk"])
     elif a.cmd == "walkforward":
         df = load(a)
-        r = walk_forward(df, lambda **k: TrendATR(**k), {"fast": [10, 20], "slow": [50, 100], "atr_mult": [2.0, 3.0]},
-                         train_bars=1500, test_bars=500)
+        r = walk_forward(df, lambda **k: TrendATR(allow_short=False, **k), {"fast": [10, 20], "slow": [50, 100], "atr_mult": [2.0, 3.0]},
+                         train_bars=1500, test_bars=500, interval=a.timeframe)
         for w in r["windows"]:
             print(w["test"][0].date(), w["params"], f"IS sharpe={w['in_sample_sharpe']:.2f}", f"OOS sharpe={w['oos']['sharpe']:.2f}", f"OOS ret={w['oos']['total_return']:.1%}")
         show("Walk-forward fuera de muestra", r["oos_metrics"])
@@ -66,7 +68,7 @@ def main(argv=None):
         r = backtest_grid(df.iloc[:800], c * 0.9, c * 1.1, 12)
         show("Grid", {**r["metrics"], "ciclos": r["cycles"]})
     elif a.cmd == "funding":
-        f = pd.read_csv(real_csv(a, funding=True), index_col=0, parse_dates=True)["rate"]
+        f = data.read_csv_ts(real_csv(a, funding=True))["rate"]
         r = backtest_funding_arb(f); show(f"Arbitraje de funding ({len(f)} pagos reales)", r["metrics"])
     else:
         live(a)
@@ -99,6 +101,10 @@ def live(a):
     feed = data.make_exchange(a.exchange, mirror=a.mirror)
     tf_s = feed.parse_timeframe(a.timeframe)
     session = PaperSession()
+    if session.state.get("tf", "1h") != a.timeframe and session.state["start"] is not None:
+        raise SystemExit(f"paper_state.json es de una sesión en {session.state.get('tf', '1h')} y ahora pides {a.timeframe}.\n"
+                         "Bórralo para empezar una sesión nueva:  del paper_state.json")
+    session.state["tf"] = a.timeframe
     risk = RiskManager(RiskConfig(), equity=session.state["equity0"])
     news = None if a.no_news else SentimentFilter()
     funding, fx, f_last, f_warned = FundingPaper(), None, 0.0, False

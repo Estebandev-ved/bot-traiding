@@ -14,6 +14,18 @@ Paquete `richy/` (el bot anterior `bot-richy.py` sigue intacto).
 | Firestore + panel con interruptores por estrategia | `richy/cloud.py`, `web/` | Panel probado en modo demo; Firebase real sin probar |
 | TimescaleDB, Grafana, Docker | `infra/`, `docker-compose.yml` | Sin probar |
 
+## Resultados con datos reales (Binance, 2023-03 → 2026-11, costos 0.06% + 0.05% por lado)
+| Estrategia | BTC 4h | ETH 4h | Veredicto |
+|---|---|---|---|
+| Tendencia ATR solo largos | +27.4%, caída -11.7%, Sharpe 0.80 | +0.4%, caída -15.6%, Sharpe 0.05 | Defensiva; borde modesto solo en BTC |
+| Tendencia largo+corto | +29.2%, Sharpe 0.65 | +10.9%, Sharpe 0.31 | Similar |
+| Reversión a la media | -49.9% | -43.4% | **Descartada** |
+| Comprar y mantener | +127.4% | +2.0% | |
+Walk-forward 4h solo largos: BTC +16.5% fuera de muestra (7 de 13 ventanas positivas), ETH +6.7% (6 de 13).
+En 1h la tendencia pierde por costos (-25.6% sin kill switch): por eso el bot usa **4h** por defecto.
+Cautelas: elegí 4h y solo largos después de ver que 1h fallaba, así que parte del resultado está sesgado a favor;
+son 3.6 años (un ciclo alcista y uno bajista) y los costos asumidos pueden ser pesimistas u optimistas según tu cuenta.
+
 ## Datos reales, siempre
 El bot en vivo y los comandos `backtest`, `walkforward`, `grid` y `funding` usan **solo datos reales** (velas y funding
 de Binance, noticias RSS y el índice Fear & Greed). Si no hay datos, se detienen y te dicen cómo bajarlos; nunca inventan.
@@ -22,7 +34,7 @@ Los datos sintéticos existen únicamente dentro de `tests/` para pruebas autom�
 ## Paper trading en vivo (sin dinero)
 ```powershell
 $env:GOOGLE_APPLICATION_CREDENTIALS="secrets\serviceAccountKey.json"
-python -m richy.cli live --symbol BTC/USDT            # si Binance da 451: añade --mirror data-api.binance.vision
+python -m richy.cli live --symbol BTC/USDT            # 4h + tendencia solo largos por defecto; si Binance da 451: añade --mirror data-api.binance.vision
 ```
 Cada vela cerrada simula las decisiones del bot con comisiones, slippage y límites de riesgo, y sube a Firestore el
 capital, las operaciones y el estado. La sesión arranca con 10,000 USDT simulados y sin posición, y se guarda en

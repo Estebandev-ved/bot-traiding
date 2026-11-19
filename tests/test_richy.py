@@ -246,3 +246,24 @@ def test_funding_paper_persists_and_reports(tmp_path):
     b = FundingPaper(str(tmp_path / "f.json")).update(f)                       # reinicio: misma fecha de arranque
     assert a["since"] == b["since"] and b["periods"] > a["periods"]
     assert b["last_rate"] == 0.0002 and abs(b["apr"] - 0.0002 * 1095) < 1e-9
+
+
+def test_csv_with_mixed_millisecond_timestamps_loads_as_datetimes(tmp_path):
+    p = tmp_path / "f.csv"
+    p.write_text("ts,rate\n2026-01-01 00:00:00+00:00,0.0001\n2026-01-01 08:00:00.005000+00:00,0.00012\n"
+                 "2026-01-01 16:00:00+00:00,0.0001\n2026-01-02 00:00:00.003000+00:00,0.00009\n")
+    f = data.read_csv_ts(str(p))["rate"]
+    assert isinstance(f.index, pd.DatetimeIndex) and f.index.is_monotonic_increasing
+    r = backtest_funding_arb(f)                       # el caso real que fallaba con 'str' - 'str'
+    assert len(r["equity"]) == len(f) + 1
+
+
+def test_scorecard_judges_defensive_strategy_by_return_per_risk():
+    idx = pd.date_range("2024-01-01", periods=2000, freq="4h", tz="UTC")
+    close = pd.Series(np.r_[np.linspace(100, 140, 1000), np.linspace(140, 91, 1000)], index=idx)       # mercado +/-: sube y se desploma
+    closed = pd.DataFrame({"close": close})
+    res = {"equity": pd.Series(10_000.0, index=idx), "metrics": {"total_return": -0.0, "max_drawdown": -0.02, "sharpe": 0.9,
+           "trades": 40, "profit_factor": 1.4, "win_rate": .4}}
+    sc = scorecard(res, closed, idx[0])
+    vs = next(c for c in sc["checks"] if c["key"] == "vs_bh")
+    assert vs["state"] == "ok"                      # rinde -0% con caída del 2% frente a un mercado que cayó mucho más

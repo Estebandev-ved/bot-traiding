@@ -3,6 +3,14 @@ import numpy as np
 import pandas as pd
 
 
+def read_csv_ts(path: str) -> pd.DataFrame:
+    """Lee un CSV con fechas en la primera columna aceptando formatos mezclados (Binance trae milisegundos
+    distintos) y deja el índice en UTC redondeado al segundo."""
+    df = pd.read_csv(path, index_col=0)
+    df.index = pd.to_datetime(df.index, utc=True, format="mixed").floor("s")
+    return df[~df.index.duplicated()].sort_index()
+
+
 def make_exchange(name: str = "binance", futures: bool = False, **opts):
     import ccxt  # opcional
     mirror = opts.pop("mirror", None)          # p. ej. data-api.binance.vision si api.binance.com da 451
@@ -35,7 +43,7 @@ def fetch_ohlcv_paged(ex, symbol: str, timeframe: str = "1h", since_ms: int = No
 
 def fetch_funding_history(ex, symbol: str, since_ms: int = None, limit: int = 1000) -> pd.Series:
     h = ex.fetch_funding_rate_history(symbol, since=since_ms, limit=limit)
-    s = pd.Series({pd.to_datetime(x["timestamp"], unit="ms", utc=True): x["fundingRate"] for x in h}, dtype=float)
+    s = pd.Series({pd.to_datetime(x["timestamp"], unit="ms", utc=True).floor("s"): x["fundingRate"] for x in h}, dtype=float)
     return s.sort_index()
 
 
