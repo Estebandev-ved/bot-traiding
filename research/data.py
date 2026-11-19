@@ -16,6 +16,7 @@ DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 COLS = ["open_time", "open", "high", "low", "close", "volume", "close_time",
         "quote_volume", "trades", "taker_buy_base", "taker_buy_quote", "ignore"]
 NUM = ["open", "high", "low", "close", "volume", "quote_volume", "trades", "taker_buy_base"]
+SEED_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data_seed")
 DEFAULT_START = "2020-01-01"
 
 
@@ -47,6 +48,11 @@ def download_klines(symbol: str, interval: str = "1h", start: str = DEFAULT_STAR
     os.makedirs(DATA_DIR, exist_ok=True)
     path = _cache_path(symbol, interval)
     cached = None
+    seed = os.path.join(SEED_DIR, f"{symbol}_{interval}.csv.gz")
+    if use_cache and not os.path.exists(path) and os.path.exists(seed):
+        # histórico incluido en el repo: evita la descarga larga; solo se baja lo que falta
+        pd.read_csv(seed, index_col=0, parse_dates=True).to_csv(path)
+        print(f"  {symbol}: histórico base cargado desde data_seed/", flush=True)
     start_ms = int(pd.Timestamp(start, tz="UTC").timestamp() * 1000)
     if use_cache and os.path.exists(path):
         cached = pd.read_csv(path, index_col=0, parse_dates=True)
