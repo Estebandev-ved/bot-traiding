@@ -51,6 +51,7 @@ def main(argv=None):
     p.add_argument("--timeframe", default="4h"); p.add_argument("--real", action="store_true")
     p.add_argument("--mirror", default=os.getenv("BINANCE_MIRROR"))
     p.add_argument("--no-news", action="store_true", help="desactiva el filtro de noticias")
+    p.add_argument("--once", action="store_true", help="corre un solo ciclo y termina (para GitHub Actions)")
     a = p.parse_args(argv)
 
     if a.cmd == "backtest":
@@ -112,15 +113,15 @@ def live(a):
     sink = get_sink()
     feed = data.make_exchange(a.exchange, mirror=a.mirror)
     tf_s = feed.parse_timeframe(a.timeframe)
-    session = PaperSession()
+    session = PaperSession(sink=sink)
     if session.state.get("tf", "1h") != a.timeframe and session.state["start"] is not None:
         raise SystemExit(f"paper_state.json es de una sesión en {session.state.get('tf', '1h')} y ahora pides {a.timeframe}.\n"
                          "Bórralo para empezar una sesión nueva:  del paper_state.json")
     session.state["tf"] = a.timeframe
     risk = RiskManager(RiskConfig(), equity=session.state["equity0"])
     news = None if a.no_news else SentimentFilter()
-    funding, fx, f_last, f_warned = FundingPaper(), None, 0.0, False
-    sent_eq, sent_tr = set(), set()
+    funding, fx, f_last, f_warned = FundingPaper(sink=sink), None, 0.0, False
+    sent_tr = set()
     print(f"[paper] {a.symbol} {a.timeframe} · capital inicial {session.state['equity0']:,.0f} USDT · "
           f"noticias={'apagado' if news is None else 'activo'} · Ctrl+C para detener")
     while not risk.killed:
@@ -138,9 +139,10 @@ def live(a):
         sent = news.check() if news else {"pause": False, "reasons": [], "fng": None, "headlines": [], "ok": False}
         res = session.update(closed, build(a, closed, enabled=flags), pause=sent["pause"])
         eq = res["equity"]
-        new_pts = [(ts.timestamp(), v) for ts, v in eq.items() if ts.timestamp() not in sent_eq]
+        done_until = session.state.get("eq_sent", 0)                 # último punto de capital ya enviado (persiste entre corridas)
+        new_pts = [(ts.timestamp(), v) for ts, v in eq.items() if ts.timestamp() > done_until]
         if new_pts:
-            sink.equity_batch(new_pts); sent_eq.update(t for t, _ in new_pts)
+            sink.equity_batch(new_pts); session.state["eq_sent"] = new_pts[-1][0]; session.save()
         for t in res["trades"]:
             key = (t["entry_time"], t["exit_time"])
             if key not in sent_tr:
@@ -167,6 +169,8 @@ def live(a):
                 sink.doc("funding", error=str(e)[:160], enabled=bool(flags.get("funding", False)))
         print(f"[{closed.index[-1]}] capital={eq.iloc[-1]:,.2f} ret={m['total_return']:+.2%} ops={m['trades']} "
               f"pos={'LONG' if op and op['side']>0 else 'SHORT' if op else '-'} noticias={'PAUSA' if sent['pause'] else 'ok'} kill={rk['killed']}")
+        if a.once:
+            return
         time.sleep(60)
     print("KILL SWITCH:", risk.kill_reason)
     sink.status(killed=True, kill_reason=risk.kill_reason)

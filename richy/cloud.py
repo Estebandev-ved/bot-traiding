@@ -6,6 +6,7 @@ Colecciones:
   trades/{id}          operaciones cerradas
   strategies/{name}    {enabled: bool}  <- el panel prende/apaga cada estrategia
 """
+import json
 import os
 import time
 
@@ -14,6 +15,8 @@ class NullSink:
     def status(self, **kw): pass
     def equity_point(self, ts, value): pass
     def doc(self, name, **kw): pass
+    def load_state(self, name): return None
+    def save_state(self, name, data): pass
     def trade(self, t: dict): pass
     def equity_batch(self, points): pass
     def strategy_flags(self, names, defaults=None): return {n: (defaults or {}).get(n, True) for n in names}
@@ -30,6 +33,13 @@ class FirebaseSink:
 
     def status(self, **kw):
         self.db.collection("status").document("current").set({**kw, "updated": time.time()}, merge=True)
+
+    def load_state(self, name):
+        d = self.db.collection("bot_state").document(name).get()
+        return json.loads(d.to_dict()["json"]) if d.exists else None
+
+    def save_state(self, name, data):
+        self.db.collection("bot_state").document(name).set({"json": json.dumps(data), "updated": time.time()})
 
     def doc(self, name, **kw):
         self.db.collection("status").document(name).set({**kw, "updated": time.time()}, merge=True)

@@ -293,3 +293,64 @@ def test_funding_monitor_flags_low_yield_and_strategy_flags_default_off():
     low = monitor(pd.Series(0.00003, index=idx)); high = monitor(pd.Series(0.0003, index=idx))
     assert not low["worth_it"] and high["worth_it"] and abs(low["apr_30d"] - 0.00003 * 1095) < 1e-9
     assert NullSink().strategy_flags(["trend", "funding"], defaults={"funding": False}) == {"trend": True, "funding": False}
+
+
+# ---------------- modo --once (GitHub Actions): el estado vive en la nube ----------------
+import json, time, types
+
+
+class FakeCloud:
+    """Firestore simulado: guarda estado, capital, operaciones y documentos de estado."""
+    def __init__(self):
+        self.store, self.eq, self.tr, self.docs, self.writes = {}, {}, {}, {}, 0
+
+    def status(self, **kw): self.docs["current"] = kw
+    def doc(self, name, **kw): self.docs[name] = kw
+    def load_state(self, name): return json.loads(json.dumps(self.store[name])) if name in self.store else None
+    def save_state(self, name, data): self.store[name] = json.loads(json.dumps(data))
+    def equity_batch(self, pts):
+        for ts, v in pts: self.eq[ts] = v; self.writes += 1
+    def trade(self, t): self.tr[(t["entry_time"], t["exit_time"])] = t
+    def strategy_flags(self, names, defaults=None): return {n: (defaults or {}).get(n, True) for n in names}
+
+
+def _run_once(monkeypatch, tmp_path, cloud, df):
+    from richy import cli
+    class Feed:
+        def parse_timeframe(self, tf): return 4 * 3600
+    monkeypatch.chdir(tmp_path)                                   # sin disco compartido entre corridas
+    monkeypatch.setattr(cli, "get_sink", lambda: cloud)
+    monkeypatch.setattr(cli.data, "make_exchange", lambda *a, **k: Feed())
+    monkeypatch.setattr(cli.data, "fetch_ohlcv_paged", lambda *a, **k: df)
+    monkeypatch.setattr(cli.data, "fetch_funding_history", lambda *a, **k: (_ for _ in ()).throw(OSError("451")))
+    args = types.SimpleNamespace(symbol="BTC/USDT", exchange="binance", timeframe="4h", real=False, mirror=None,
+                                 no_news=True, strategy="trend", once=True, csv=None)
+    cli.live(args)
+
+
+def test_once_mode_continues_the_session_from_cloud_state_without_duplicating(monkeypatch, tmp_path):
+    end = pd.Timestamp("2026-06-01 08:00", tz="UTC")              # vela de 4 h en curso en la primera corrida
+    full = data.synthetic_ohlcv(1101, freq="4h").set_axis(pd.date_range(end=end + pd.Timedelta(hours=4), periods=1101, freq="4h"))
+    from richy import cli
+    now1 = end.timestamp() + 7 * 60                               # Actions corre 7 min después del cierre
+    cloud = FakeCloud()
+    (tmp_path / "a").mkdir(); (tmp_path / "b").mkdir()
+    monkeypatch.setattr(cli.time, "time", lambda: now1)
+    _run_once(monkeypatch, tmp_path / "a", cloud, full.iloc[:-1])
+    start1 = cloud.store["paper"]["start"]; n1 = len(cloud.eq)
+    assert cloud.docs["current"]["mode"] == "paper" and "scorecard" in cloud.docs["current"]
+    monkeypatch.setattr(cli.time, "time", lambda: now1 + 4 * 3600)
+    _run_once(monkeypatch, tmp_path / "b", cloud, full)           # 4 h después, "otra máquina": solo el estado en la nube
+    assert cloud.store["paper"]["start"] == start1               # misma sesión, no empieza de cero
+    assert len(cloud.eq) > n1 and cloud.writes == len(cloud.eq)   # llegó la vela nueva y ningún punto se reenvió
+    assert cloud.docs["funding"]["error"]                        # funding bloqueado (451) no tumba el ciclo
+
+
+def test_once_mode_refuses_a_session_with_another_timeframe(monkeypatch, tmp_path):
+    end = pd.Timestamp("2026-06-01 08:00", tz="UTC")
+    df = data.synthetic_ohlcv(1100, freq="4h").set_axis(pd.date_range(end=end, periods=1100, freq="4h"))
+    cloud = FakeCloud(); cloud.store["paper"] = {"equity0": 10_000.0, "start": df.index[-50].isoformat(), "signals": {}, "tf": "1h"}
+    from richy import cli
+    monkeypatch.setattr(cli.time, "time", lambda: end.timestamp() + 420)
+    with pytest.raises(SystemExit):
+        _run_once(monkeypatch, tmp_path, cloud, df)

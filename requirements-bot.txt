@@ -1,0 +1,5 @@
+# Dependencias mínimas para correr el bot en GitHub Actions (sin LightGBM ni pytest)
+numpy>=1.26
+pandas>=2.1
+ccxt>=4.3
+firebase-admin>=6.5

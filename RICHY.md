@@ -86,3 +86,11 @@ nunca rindió **+1.46% sobre el capital** (la mitad del capital es margen del co
 y pagaba 242 en costos por 118 cobrados (-1.24%). Por eso el arbitraje queda **apagado por defecto**: el panel solo
 monitorea el funding y avisa cuando el rendimiento esperado sobre el capital supere ~5% anual (umbral orientativo).
 `python -m richy.cli funding-sweep` repite el diagnóstico con tus datos.
+
+## Correr gratis en GitHub Actions (sin PC ni VPS)
+`.github/workflows/bot.yml` ejecuta un ciclo cada 4 h con `python -m richy.cli live --once`. El estado de la sesión vive en
+Firestore (`bot_state/paper`), así que sobrevive entre corridas. Requisitos: (1) el workflow debe estar en la rama por defecto,
+porque GitHub solo ejecuta los cron desde ahí; (2) crear el secreto `FIREBASE_SERVICE_ACCOUNT` con el contenido del JSON de la
+cuenta de servicio; (3) NO correr a la vez el bot en tu PC con la misma base de datos (se pisarían). Limitaciones: no es 24/7, los
+cron pueden retrasarse y GitHub los desactiva tras 60 días sin actividad en repos públicos. El funding (fapi) está bloqueado
+desde EE. UU.; el panel mostrará "Sin datos de funding", que no afecta a la tendencia.

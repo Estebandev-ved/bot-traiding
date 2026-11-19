@@ -8,11 +8,14 @@ PERIODS_PER_YEAR = 3 * 365
 
 
 class FundingPaper:
-    def __init__(self, path="funding_state.json", equity0=10_000.0, enter_above=0.0001, exit_below=-0.00005, smooth=9):
+    def __init__(self, path="funding_state.json", equity0=10_000.0, enter_above=0.0001, exit_below=-0.00005, smooth=9, sink=None):
         # decide con el promedio de 3 días y sale solo si es claramente negativo: evita el churn que se come el funding
         self.path, self.enter_above, self.exit_below, self.smooth = path, enter_above, exit_below, smooth
-        self.state = {"equity0": equity0, "start": None}
-        if os.path.exists(path):
+        self.sink, self.state = sink, {"equity0": equity0, "start": None}
+        remote = sink.load_state("funding") if sink is not None else None
+        if remote is not None:
+            self.state = remote
+        elif os.path.exists(path):
             with open(path) as f:
                 self.state = json.load(f)
 
@@ -21,6 +24,8 @@ class FundingPaper:
         funding = funding.sort_index()
         if self.state["start"] is None:
             self.state["start"] = funding.index[-1].isoformat()    # arranca con la última liquidación como referencia
+            if self.sink is not None:
+                self.sink.save_state("funding", self.state)
             tmp = self.path + ".tmp"
             with open(tmp, "w") as f:
                 json.dump(self.state, f)

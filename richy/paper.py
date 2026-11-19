@@ -21,17 +21,27 @@ class _Frozen(Strategy):
 
 
 class PaperSession:
-    def __init__(self, path: str = "paper_state.json", equity0: float = 10_000.0):
-        self.path, self.state = path, {"equity0": equity0, "start": None, "signals": {}}
-        if os.path.exists(path):
+    def __init__(self, path: str = "paper_state.json", equity0: float = 10_000.0, sink=None):
+        """Con `sink` el estado vive en Firestore (sirve en GitHub Actions); si no, en un archivo local."""
+        self.path, self.sink = path, sink
+        self.state = {"equity0": equity0, "start": None, "signals": {}}
+        remote = sink.load_state("paper") if sink is not None else None
+        if remote is not None:
+            self.state = remote
+        elif os.path.exists(path):
             with open(path) as f:
                 self.state = json.load(f)
 
     def _save(self):
+        if self.sink is not None:
+            self.sink.save_state("paper", self.state)
         tmp = self.path + ".tmp"
         with open(tmp, "w") as f:
             json.dump(self.state, f)
         os.replace(tmp, self.path)
+
+    def save(self):
+        self._save()
 
     def update(self, closed: pd.DataFrame, strategy: Strategy, cost: CostModel = None, risk: RiskConfig = None,
                pause: bool = False):
