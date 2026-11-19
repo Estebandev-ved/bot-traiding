@@ -80,3 +80,4 @@ Thumbs.db
 # ===========================================
 config_local.py
 settings_local.py
+bot_settings.json

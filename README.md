@@ -59,8 +59,8 @@ RISK_PER_TRADE=0.02
 # Para ejecutar el bucle principal del bot
 python bot-richy.py
 
-# Para monitorear mediante el panel (si aplica)
-python dashboard.py
+# Dashboard futurista (auto-actualización, sonidos, configuración)
+streamlit run dashboard.py
 ```
 
 ## 📈 Hoja de Ruta (Roadmap)

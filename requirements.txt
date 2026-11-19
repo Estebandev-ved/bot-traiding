@@ -31,7 +31,7 @@ colorama==0.4.6
 python-telegram-bot==20.7
 
 # Dashboard Web
-streamlit==1.29.0
+streamlit>=1.37
 plotly==5.18.0
 
 # Persistencia de modelos ML
