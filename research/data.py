@@ -19,12 +19,15 @@ NUM = ["open", "high", "low", "close", "volume", "quote_volume", "trades", "take
 DEFAULT_START = "2020-01-01"
 
 
+_SESSION = requests.Session()   # reutiliza la conexión TLS (mucho más rápido que abrir una por petición)
+
+
 def _get(path: str, params: dict, retries: int = 5):
     last = None
     for attempt in range(retries):
         for base in BASE_URLS:
             try:
-                r = requests.get(base + path, params=params, timeout=20)
+                r = _SESSION.get(base + path, params=params, timeout=(10, 30))
                 if r.status_code == 200:
                     return r.json()
                 last = f"{base} -> HTTP {r.status_code}"
@@ -59,6 +62,9 @@ def download_klines(symbol: str, interval: str = "1h", start: str = DEFAULT_STAR
             break
         rows.extend(batch)
         cursor = batch[-1][0] + 1
+        if len(rows) % 10000 < 1000:   # progreso aproximado cada ~10 mil velas
+            print(f"  {symbol}: {len(rows)} velas descargadas... "
+                  f"({pd.to_datetime(batch[-1][0], unit='ms', utc=True):%Y-%m-%d})", flush=True)
         if len(batch) < 1000:
             break
 
@@ -90,6 +96,7 @@ def resample_ohlcv(df: pd.DataFrame, rule: str) -> pd.DataFrame:
 def load_symbols(symbols: Iterable[str], timeframe: str = "1h", start: str = DEFAULT_START) -> dict:
     data = {}
     for s in symbols:
+        print(f"Datos {s} (la primera vez descarga ~7 años, puede tardar unos minutos)...", flush=True)
         df = download_klines(s, "1h", start)
         data[s] = df if timeframe == "1h" else resample_ohlcv(df, timeframe)
     return data
