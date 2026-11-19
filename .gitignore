@@ -88,3 +88,5 @@ serviceAccountKey*.json
 config.env
 datos/
 paper_state.json
+bot_settings.json
+funding_state.json
