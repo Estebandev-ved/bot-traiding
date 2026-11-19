@@ -81,3 +81,11 @@ Thumbs.db
 config_local.py
 settings_local.py
 bot_settings.json
+
+# ===========================================
+# LABORATORIO DE INVESTIGACIÓN / PAPER TRADING
+# ===========================================
+data/
+models/
+paper_state.json
+paper.log

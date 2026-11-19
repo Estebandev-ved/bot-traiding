@@ -63,6 +63,28 @@ python bot-richy.py
 streamlit run dashboard.py
 ```
 
+## 🔬 Validación honesta y Paper Trading (nuevo)
+
+> **Estado real**: tras validar con walk-forward, comisiones y un tramo final sin tocar, **no hay evidencia aún de
+> rentabilidad sostenida** (la estrategia candidata ganó +81 % en 2022-nov 2025 pero perdió −9.5 % en el último año).
+> Lee `reports/INFORME_VALIDACION.md` antes de arriesgar dinero real o hablar con inversionistas.
+
+```bash
+pip install -r requirements-research.txt
+
+python -m research.data                # descarga/actualiza historial público (sin API key)
+python -m research.run_research        # experimento completo: diseño + holdout, con costos
+python -m research.report              # gráfico y tablas -> reports/
+
+python3 paper_trader.py train          # entrena el modelo con todo el histórico
+python3 paper_trader.py run            # procesa velas 4h nuevas (cron: 2 */4 * * *)
+python3 paper_trader.py status         # historial en vivo (sin dinero)
+```
+
+Módulos: `research/features.py` (indicadores sin TA-Lib), `engine.py` (simulador con SL/TP, comisiones, slippage),
+`walkforward.py` (meta-labeling ML fuera de muestra), `portfolio.py` (capital compartido, mínimo de orden de Binance),
+`paper.py` (motor en vivo; reproduce el backtest trade por trade).
+
 ## 📈 Hoja de Ruta (Roadmap)
 - [ ] Trading simultáneo de múltiples pares.
 - [ ] Integración de Análisis de Sentimiento de noticias y redes sociales.
