@@ -8,8 +8,9 @@ PERIODS_PER_YEAR = 3 * 365
 
 
 class FundingPaper:
-    def __init__(self, path="funding_state.json", equity0=10_000.0, enter_above=0.0001, exit_below=0.0):
-        self.path, self.enter_above, self.exit_below = path, enter_above, exit_below
+    def __init__(self, path="funding_state.json", equity0=10_000.0, enter_above=0.0001, exit_below=-0.00005, smooth=9):
+        # decide con el promedio de 3 días y sale solo si es claramente negativo: evita el churn que se come el funding
+        self.path, self.enter_above, self.exit_below, self.smooth = path, enter_above, exit_below, smooth
         self.state = {"equity0": equity0, "start": None}
         if os.path.exists(path):
             with open(path) as f:
@@ -26,7 +27,7 @@ class FundingPaper:
             os.replace(tmp, self.path)
         start = pd.Timestamp(self.state["start"])
         series = funding[funding.index >= start]
-        res = backtest_funding_arb(series, self.state["equity0"], self.enter_above, self.exit_below, cost or CostModel())
+        res = backtest_funding_arb(series, self.state["equity0"], self.enter_above, self.exit_below, cost or CostModel(), smooth=self.smooth)
         eq = res["equity"]
         last = float(funding.iloc[-1])
         in_pos = bool(res["in_position"])
@@ -52,3 +53,15 @@ def analyze(funding: pd.Series, cost: CostModel = None) -> dict:
                              "entries": r["entries"], "gross": r["gross_funding"], "costs": r["costs"]})
     return {"stats": stats, "hold": {"ret": hold["metrics"]["total_return"], "gross": hold["gross_funding"], "costs": hold["costs"],
             "dd": hold["metrics"]["max_drawdown"]}, "sweep": rows}
+
+
+WORTH_IT_APR_ON_CAPITAL = 0.05     # umbral orientativo: por debajo, otras alternativas simples rinden igual o más
+
+
+def monitor(funding: pd.Series) -> dict:
+    """Lectura del funding real, sin simular nada: cuánto rendiría hoy el arbitraje sobre TODO el capital
+    (la mitad del capital es margen del corto, por eso el factor 0.5)."""
+    f = funding.sort_index()
+    apr30 = float(f.iloc[-90:].mean() * PERIODS_PER_YEAR)
+    return {"last_rate": float(f.iloc[-1]), "apr_7d": float(f.iloc[-21:].mean() * PERIODS_PER_YEAR), "apr_30d": apr30,
+            "expected_on_capital": apr30 * 0.5, "worth_it": bool(apr30 * 0.5 >= WORTH_IT_APR_ON_CAPITAL), "payments": int(len(f))}

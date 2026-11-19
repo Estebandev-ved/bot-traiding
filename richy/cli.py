@@ -106,7 +106,7 @@ def live(a):
     from .paper import PaperSession
     from .scorecard import scorecard
     from .sentiment import SentimentFilter
-    from .funding_paper import FundingPaper
+    from .funding_paper import FundingPaper, monitor
     if a.real:
         raise SystemExit("El modo --real todavía no está habilitado: primero hay que validar la estrategia en paper.")
     sink = get_sink()
@@ -134,7 +134,7 @@ def live(a):
         risk.check_price(closed["close"].iloc[-2], closed["close"].iloc[-1])
         if risk.killed:
             break
-        flags = sink.strategy_flags(["trend", "meanrev", "funding"])
+        flags = sink.strategy_flags(["trend", "meanrev", "funding"], defaults={"funding": False})
         sent = news.check() if news else {"pause": False, "reasons": [], "fng": None, "headlines": [], "ok": False}
         res = session.update(closed, build(a, closed, enabled=flags), pause=sent["pause"])
         eq = res["equity"]
@@ -150,21 +150,21 @@ def live(a):
         sink.status(**_clean(dict(symbol=a.symbol, mode="paper", equity=float(eq.iloc[-1]), total_return=m["total_return"],
                     max_drawdown=m["max_drawdown"], trades=m["trades"], killed=rk["killed"], kill_reason=rk["kill_reason"],
                     halted_today=rk["halted_today"], position=op, scorecard=card, sentiment=sent)))
-        if flags.get("funding", True) and time.time() - f_last > 600:        # funding: cada 10 min, sin bloquear el bot
+        if time.time() - f_last > 600:                                      # funding: cada 10 min, sin bloquear el bot
             f_last = time.time()
             try:
                 fx = fx or data.make_exchange(a.exchange, futures=True)
-                since = int((time.time() - 3 * 86400) * 1000)
+                since = int((time.time() - 35 * 86400) * 1000)
                 fs = data.fetch_funding_history(fx, a.symbol + ":" + a.symbol.split("/")[1], since_ms=since)
                 if len(fs):
-                    sink.doc("funding", **_clean({**funding.update(fs), "enabled": True, "error": None}))
-                    f_warned = False
+                    doc = {**monitor(fs), "enabled": bool(flags.get("funding", False)), "error": None}
+                    if doc["enabled"]:                                       # simulación solo si la enciendes en el panel
+                        doc.update(funding.update(fs))
+                    sink.doc("funding", **_clean(doc)); f_warned = False
             except Exception as e:
                 if not f_warned:
                     print("[funding] sin datos (si Binance da 451, usa una VPN o un VPS fuera de tu región):", str(e)[:100]); f_warned = True
-                sink.doc("funding", error=str(e)[:160], enabled=True)
-        elif not flags.get("funding", True):
-            sink.doc("funding", enabled=False)
+                sink.doc("funding", error=str(e)[:160], enabled=bool(flags.get("funding", False)))
         print(f"[{closed.index[-1]}] capital={eq.iloc[-1]:,.2f} ret={m['total_return']:+.2%} ops={m['trades']} "
               f"pos={'LONG' if op and op['side']>0 else 'SHORT' if op else '-'} noticias={'PAUSA' if sent['pause'] else 'ok'} kill={rk['killed']}")
         time.sleep(60)

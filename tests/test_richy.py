@@ -284,3 +284,12 @@ def test_funding_analyze_runs_on_a_series():
     idx = pd.date_range("2024-01-01", periods=400, freq="8h", tz="UTC")
     d = analyze(pd.Series(0.00012, index=idx))
     assert len(d["sweep"]) == 18 and d["stats"]["pct_positive"] == 1.0 and d["hold"]["ret"] > 0
+
+
+def test_funding_monitor_flags_low_yield_and_strategy_flags_default_off():
+    from richy.funding_paper import monitor
+    from richy.cloud import NullSink
+    idx = pd.date_range("2024-01-01", periods=120, freq="8h", tz="UTC")
+    low = monitor(pd.Series(0.00003, index=idx)); high = monitor(pd.Series(0.0003, index=idx))
+    assert not low["worth_it"] and high["worth_it"] and abs(low["apr_30d"] - 0.00003 * 1095) < 1e-9
+    assert NullSink().strategy_flags(["trend", "funding"], defaults={"funding": False}) == {"trend": True, "funding": False}

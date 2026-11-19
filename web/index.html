@@ -150,9 +150,9 @@ const FIREBASE_CONFIG = {   // pública por diseño: la seguridad la dan el logi
 
 const $ = s => document.querySelector(s), fmt = n => (+n).toLocaleString("es", {maximumFractionDigits: 2});
 const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
-const state = {equity: [], trades: [], status: {}, funding: {}, strats: {trend: true, meanrev: true, grid: false, funding: true}};
+const state = {equity: [], trades: [], status: {}, funding: {}, strats: {trend: true, meanrev: true, grid: false, funding: false}};
 const LABELS = {trend: ["Seguir tendencia", "EMA + ADX, stop por ATR"], meanrev: ["Reversión a la media", "Z-score, rango"],
-                grid: ["Grid trading", "Aún no se ejecuta en vivo"], funding: ["Arbitraje de funding", "Spot largo + corto, cobra funding (paper)"]};
+                grid: ["Grid trading", "Aún no se ejecuta en vivo"], funding: ["Arbitraje de funding", "Simulación; hoy rinde poco (ver Mercado)"]};
 let setFlag = async (k, v) => { state.strats[k] = v; render(); };
 
 /* ---------- ajustes locales (tema + sonido) ---------- */
@@ -260,14 +260,16 @@ function renderNews() {
     `<div style="color:var(--mut);font-size:.72rem;margin-top:8px">Solo pausa al bot; nunca abre operaciones.</div>`;
 }
 function renderFund() {
-  const f = state.funding || {}, h = `<h4 style="margin:0 0 8px;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--mut)">Arbitraje de funding (paper)</h4>`;
-  if (f.enabled === false) { $("#fund").innerHTML = h + `<span style="color:var(--mut)">Apagado desde el panel.</span>`; return; }
-  if (f.error && f.equity == null) { $("#fund").innerHTML = h + `<span class="neg">Sin datos de funding.</span><div style="color:var(--mut);font-size:.76rem;margin-top:6px">${esc(f.error)}</div><div style="color:var(--mut);font-size:.76rem;margin-top:6px">Binance suele bloquear futuros por región (451): corre el bot desde un VPS en otra región.</div>`; return; }
-  if (f.equity == null) { $("#fund").innerHTML = h + `<span style="color:var(--mut)">Esperando la primera lectura de funding…</span>`; return; }
-  const c = f.total_return >= 0 ? "pos" : "neg";
-  $("#fund").innerHTML = h + `<div class="mono ${c}" style="font-size:1.1rem">${(f.total_return >= 0 ? "+" : "") + fmt(f.total_return * 100)}% · $${fmt(f.equity)}</div>
-    <div style="color:var(--mut);margin-top:6px;font-size:.84rem">Tasa actual: <span class="mono" style="color:var(--txt)">${(f.last_rate * 100).toFixed(4)}%</span> por 8 h (≈ ${fmt(f.apr * 100)}% anual)</div>
-    <div style="color:var(--mut);font-size:.84rem">${f.in_position ? "Posición abierta: cobrando funding" : "Fuera: la tasa no compensa los costos"} · ${f.entries} entradas · ${f.periods} pagos</div>`;
+  const f = state.funding || {}, h = `<h4 style="margin:0 0 8px;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--mut)">Funding (arbitraje spot + corto)</h4>`;
+  if (f.error && f.last_rate == null) { $("#fund").innerHTML = h + `<span class="neg">Sin datos de funding.</span><div style="color:var(--mut);font-size:.76rem;margin-top:6px">${esc(f.error)}</div><div style="color:var(--mut);font-size:.76rem;margin-top:6px">Binance suele bloquear futuros por región (451).</div>`; return; }
+  if (f.last_rate == null) { $("#fund").innerHTML = h + `<span style="color:var(--mut)">Esperando la primera lectura de funding…</span>`; return; }
+  const exp = (f.expected_on_capital || 0) * 100, worth = !!f.worth_it, c = worth ? "pos" : "";
+  let sim = "";
+  if (f.enabled && f.equity != null) { const r = f.total_return >= 0 ? "pos" : "neg"; sim = `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line);font-size:.84rem">Simulación: <span class="mono ${r}">${(f.total_return >= 0 ? "+" : "") + fmt(f.total_return * 100)}% · $${fmt(f.equity)}</span> · ${f.entries} entradas · ${f.in_position ? "dentro" : "fuera"}</div>`; }
+  $("#fund").innerHTML = h + `<div class="mono ${c}" style="font-size:1.1rem">${worth ? "Podría valer la pena" : "No compensa hoy"}</div>
+    <div style="color:var(--mut);margin-top:6px;font-size:.84rem">Funding anualizado: 7 días <span class="mono" style="color:var(--txt)">${fmt(f.apr_7d * 100)}%</span> · 30 días <span class="mono" style="color:var(--txt)">${fmt(f.apr_30d * 100)}%</span></div>
+    <div style="color:var(--mut);font-size:.84rem">Rendimiento esperado sobre tu capital: <span class="mono" style="color:var(--txt)">≈ ${fmt(exp)}%</span> al año (la mitad del capital es margen)</div>
+    <div style="color:var(--mut);font-size:.72rem;margin-top:6px">Umbral orientativo: 5% anual. Apagado por defecto; solo monitorea.</div>` + sim;
 }
 function chart() {
   const e = state.equity.map(p => p.v), svg = $("#chart"); if (e.length < 2) { svg.innerHTML = `<text x="400" y="140" fill="#7d8a9c" font-size="14" text-anchor="middle">La curva se dibuja con la primera vela cerrada (≈ cada hora)</text>`; return; }

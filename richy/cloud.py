@@ -16,7 +16,7 @@ class NullSink:
     def doc(self, name, **kw): pass
     def trade(self, t: dict): pass
     def equity_batch(self, points): pass
-    def strategy_flags(self, names): return {n: True for n in names}
+    def strategy_flags(self, names, defaults=None): return {n: (defaults or {}).get(n, True) for n in names}
 
 
 class FirebaseSink:
@@ -51,11 +51,11 @@ class FirebaseSink:
                 b.set(col.document(str(int(ts))), {"t": int(ts), "v": float(v)})
             b.commit()
 
-    def strategy_flags(self, names):
-        out = {}
+    def strategy_flags(self, names, defaults=None):
+        out, defaults = {}, defaults or {}
         for n in names:
             doc = self.db.collection("strategies").document(n).get()
-            out[n] = bool(doc.to_dict().get("enabled", True)) if doc.exists else True
+            out[n] = bool(doc.to_dict().get("enabled", defaults.get(n, True))) if doc.exists else defaults.get(n, True)
         return out
 
 

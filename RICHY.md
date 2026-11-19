@@ -79,3 +79,10 @@ no sale a producción. Luego paper trading semanas, y solo después `--real` con
 ## Producción
 VPS cerca del exchange (Tokio para Binance) con `docker compose up -d`. API keys **sin permiso de retiro** y
 restringidas a la IP del servidor. Alertas: Grafana sobre TimescaleDB y/o el notificador de Telegram existente.
+
+## Funding: resultado con datos reales (BTC, 2025-12 → 2026-11)
+Funding medio **+3.5% anual** sobre el nocional; solo 9% de los pagos llegó a 0.01% (el tope). Entrar al inicio y no salir
+nunca rindió **+1.46% sobre el capital** (la mitad del capital es margen del corto). El diseño anterior entraba y salía 11 veces
+y pagaba 242 en costos por 118 cobrados (-1.24%). Por eso el arbitraje queda **apagado por defecto**: el panel solo
+monitorea el funding y avisa cuando el rendimiento esperado sobre el capital supere ~5% anual (umbral orientativo).
+`python -m richy.cli funding-sweep` repite el diagnóstico con tus datos.
