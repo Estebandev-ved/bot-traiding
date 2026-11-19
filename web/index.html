@@ -5,62 +5,127 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Richy Terminal</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#07090d;--panel:#0d1118;--panel2:#121823;--line:#1d2635;--tx:#e8edf5;--mut:#7d8aa0;--gold:#e7c26b;--up:#2ee59d;--dn:#ff5c7a;--blue:#5b8cff}
-*{box-sizing:border-box}body{margin:0;background:radial-gradient(1200px 600px at 80% -10%,#14203a55,transparent),var(--bg);color:var(--tx);font:14px/1.5 Inter,system-ui,sans-serif}
+:root{--ac:#4c8dff;--ac2:#2a4a8a;--win:#26a69a;--loss:#ef5350;--bg:#0b0e13;--panel:#11151c;--line:#1f2733;--mut:#7d8a9c;--txt:#d5dbe5}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.5 Inter,system-ui,sans-serif}
 .mono{font-family:'JetBrains Mono',monospace}
-header{display:flex;align-items:center;justify-content:space-between;padding:18px 28px;border-bottom:1px solid var(--line);position:sticky;top:0;background:#07090dd9;backdrop-filter:blur(10px);z-index:5}
-.brand{display:flex;gap:12px;align-items:center;font-weight:700;letter-spacing:.3px}
-.logo{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--gold),#b8872e);display:grid;place-items:center;color:#1a1305;font-weight:800}
-.brand small{display:block;color:var(--mut);font-weight:500;font-size:11px;letter-spacing:1.5px;text-transform:uppercase}
-.pill{display:inline-flex;gap:8px;align-items:center;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--panel);font-size:12px;color:var(--mut)}
-.dot{width:8px;height:8px;border-radius:50%;background:var(--up);box-shadow:0 0 10px var(--up)}.dot.off{background:var(--dn);box-shadow:0 0 10px var(--dn)}
-main{max-width:1280px;margin:0 auto;padding:24px 28px 60px}
-.grid{display:grid;gap:16px}.kpis{grid-template-columns:repeat(5,1fr)}
-.card{min-width:0;background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:16px;padding:18px 20px}
-.k .l{color:var(--mut);font-size:11px;letter-spacing:1.2px;text-transform:uppercase}.k .v{font-size:26px;font-weight:600;margin-top:6px}
-.k .s{font-size:12px;margin-top:2px}.up{color:var(--up)}.dn{color:var(--dn)}
-.row{grid-template-columns:2fr 1fr;margin-top:16px}h3{margin:0 0 14px;font-size:13px;letter-spacing:1.2px;text-transform:uppercase;color:var(--mut);font-weight:600}
-svg{width:100%;height:280px;display:block}
-.strat{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}.strat:last-child{border:0}
-.strat b{display:block}.strat span{color:var(--mut);font-size:12px}
-.sw{width:46px;height:26px;border-radius:99px;background:#222c3d;position:relative;cursor:pointer;border:0;transition:.2s}.sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#8896ad;transition:.2s}
-.sw.on{background:#17543f}.sw.on::after{left:23px;background:var(--up)}
-table{width:100%;border-collapse:collapse}th{color:var(--mut);font-weight:500;font-size:11px;letter-spacing:1px;text-transform:uppercase;text-align:left;padding:8px 10px}
-td{padding:11px 10px;border-top:1px solid var(--line)}.tag{padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600}.tag.l{background:#12392e;color:var(--up)}.tag.s{background:#3b1823;color:var(--dn)}
-.alert{display:none;margin-bottom:16px;border:1px solid #6b2236;background:#2a1018;color:#ffb3c0;border-radius:12px;padding:12px 16px}
-.demo{color:var(--gold);font-size:12px}
-.gate{position:fixed;inset:0;z-index:20;display:none;place-items:center;padding:20px;background:radial-gradient(900px 500px at 70% 0,#14203a99,transparent),var(--bg)}
-.gate .box{width:100%;max-width:400px;text-align:center;padding:34px 28px}.gate .logo{margin:0 auto 18px;width:52px;height:52px;font-size:22px;border-radius:14px}
-.gate h2{margin:0 0 6px;font-size:22px}.gate p{margin:0 0 22px;color:var(--mut)}
-.gbtn{width:100%;display:flex;gap:12px;align-items:center;justify-content:center;padding:13px 16px;border-radius:12px;border:1px solid var(--line);background:#fff;color:#1f1f1f;font:600 15px Inter,sans-serif;cursor:pointer}
-.gbtn svg{width:18px;height:18px;flex:none}.gbtn:hover{filter:brightness(.95)}.gbtn:disabled{opacity:.6;cursor:wait}.gmsg{margin-top:16px;font-size:13px;color:#ffb3c0;min-height:18px}
-.lnk{background:none;border:0;color:var(--mut);cursor:pointer;font:inherit;text-decoration:underline}
-@media(max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}.row{grid-template-columns:1fr}main{padding:16px}header{padding:14px 16px}}
+svg.i{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-3px;flex:none}
+main{max-width:1500px;margin:0 auto;padding:16px 20px 60px}
+.brand{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:12px 18px;background:var(--panel);border:1px solid var(--line);border-radius:6px;border-left:3px solid var(--ac)}
+.logo{display:flex;align-items:center;gap:12px}.logo svg{width:26px;height:26px;color:var(--ac);stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round}
+.brand h1{margin:0;font-size:1.05rem;font-weight:600;letter-spacing:.04em;color:#fff}.brand small{display:block;color:var(--mut);font-size:.74rem;letter-spacing:.06em}
+.chips{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.chip{font-size:.72rem;font-weight:500;padding:5px 10px;border:1px solid var(--line);border-radius:4px;color:var(--mut);display:inline-flex;gap:7px;align-items:center;background:#0d1117}
+.chip .d{width:7px;height:7px;border-radius:50%;background:currentColor}.chip.on{color:var(--win)}.chip.off{color:var(--loss)}
+button.chip{cursor:pointer;font-family:inherit}button.chip:hover{border-color:var(--ac);color:#fff}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:14px 0 0}
+.tab{background:none;border:0;border-bottom:2px solid transparent;color:var(--mut);font:500 .82rem Inter,sans-serif;padding:9px 16px;cursor:pointer;display:flex;gap:7px;align-items:center}
+.tab:hover{color:#fff}.tab.on{color:#fff;border-bottom-color:var(--ac)}
+.view{display:none}.view.on{display:block}
+.grid{display:grid;gap:10px}.kpis{grid-template-columns:repeat(auto-fit,minmax(190px,1fr));margin:14px 0}
+.card{min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:14px 16px}
+.k .l{font-size:.68rem;letter-spacing:.09em;color:var(--mut);text-transform:uppercase;font-weight:500;display:flex;gap:6px;align-items:center}
+.k .v{font-size:1.45rem;font-weight:500;margin-top:7px;color:#fff}.k .s{font-size:.76rem;color:var(--mut);margin-top:3px}
+.pos{color:var(--win)!important}.neg{color:var(--loss)!important}
+.sec{font-size:.72rem;font-weight:600;letter-spacing:.1em;color:var(--mut);margin:18px 0 8px;text-transform:uppercase;display:flex;align-items:center;gap:8px}
+.sec::after{content:"";flex:1;height:1px;background:var(--line)}
+.poscard{padding:12px 16px;background:var(--panel);border:1px solid var(--line);border-radius:6px;font-size:.88rem;display:flex;gap:18px;flex-wrap:wrap;align-items:center}
+.poscard.open{border-left:3px solid var(--ac)}.poscard b{color:#fff;font-weight:600}.poscard .f{color:var(--mut)}.poscard .f span{color:var(--txt);font-family:'JetBrains Mono',monospace}
+.row{grid-template-columns:2fr 1fr}
+svg.chart{width:100%;height:280px;display:block}
+.strat{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--line)}.strat:last-child{border:0}
+.strat b{display:block;font-weight:500;color:#fff}.strat span{color:var(--mut);font-size:.76rem}
+.sw{width:42px;height:22px;border-radius:99px;background:#222c3d;position:relative;cursor:pointer;border:0;transition:.2s;flex:none}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#8896ad;transition:.2s}
+.sw.on{background:var(--ac2)}.sw.on::after{left:23px;background:var(--ac)}
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:6px;background:var(--panel)}
+table.tl{width:100%;min-width:560px;border-collapse:collapse;font-size:.82rem}
+table.tl th{text-align:left;color:var(--mut);font-weight:500;font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;padding:8px 12px;border-bottom:1px solid var(--line)}
+table.tl td{padding:7px 12px;border-bottom:1px solid #161c26;font-family:'JetBrains Mono',monospace}
+.tag{padding:2px 8px;border-radius:4px;font-size:.7rem;font-weight:600}.tag.l{background:#12302c;color:var(--win)}.tag.s{background:#3a1a1a;color:var(--loss)}
+.alert{display:none;margin-top:14px;border:1px solid #6b2a2a;background:#241214;color:#f3b0ae;border-radius:6px;padding:11px 16px;font-size:.86rem}
+.set{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;margin-top:14px}
+.set h4{margin:0 0 12px;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--mut)}
+.fld{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--line);font-size:.86rem}.fld:last-child{border:0}
+select,input[type=number]{background:#0d1117;color:var(--txt);border:1px solid var(--line);border-radius:4px;padding:6px 8px;font:inherit}
+input[type=range]{accent-color:var(--ac);width:140px}
+.themes{display:flex;gap:8px;flex-wrap:wrap}.th{width:26px;height:26px;border-radius:50%;border:2px solid transparent;cursor:pointer}.th.on{border-color:#fff}
+.btn{background:#151b25;border:1px solid var(--line);color:var(--txt);border-radius:4px;padding:6px 12px;font:500 .8rem Inter,sans-serif;cursor:pointer}.btn:hover{border-color:var(--ac);color:#fff}
+.gate{position:fixed;inset:0;z-index:20;display:none;place-items:center;padding:20px;background:var(--bg)}
+.gate .box{width:100%;max-width:400px;text-align:center;padding:34px 28px;border-left:3px solid var(--ac)}
+.gate .logo{justify-content:center;margin-bottom:14px}.gate .logo svg{width:40px;height:40px}
+.gate h2{margin:0 0 6px;font-size:1.2rem;color:#fff;font-weight:600}.gate p{margin:0 0 22px;color:var(--mut)}
+.gbtn{width:100%;display:flex;gap:12px;align-items:center;justify-content:center;padding:12px 16px;border-radius:4px;border:1px solid var(--line);background:#fff;color:#1f1f1f;font:600 14px Inter,sans-serif;cursor:pointer}
+.gbtn svg{width:18px;height:18px;flex:none}.gbtn:hover{filter:brightness(.95)}.gbtn:disabled{opacity:.6;cursor:wait}
+.gmsg{margin-top:16px;font-size:13px;color:#f3b0ae;min-height:18px}.lnk{background:none;border:0;color:var(--mut);cursor:pointer;font:inherit;text-decoration:underline}
+.demo{color:var(--mut);font-size:.72rem}
+@media(max-width:900px){.row{grid-template-columns:1fr}main{padding:12px}.tab{padding:9px 10px}}
 </style>
 </head>
 <body>
 <div class="gate" id="gate"><div class="card box">
-  <div class="logo">R</div><h2>Richy Terminal</h2><p>Acceso privado. Entra con tu cuenta de Google.</p>
-  <button class="gbtn" id="gbtn"><svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.6 5.9c4.4-4.1 7-10.1 7-17.6z"/><path fill="#FBBC05" d="M10.5 28.7c-.5-1.5-.8-3-.8-4.7s.3-3.2.8-4.7l-7.9-6.1C.9 16.4 0 20.1 0 24s.9 7.6 2.6 10.8l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.6-5.9c-2.1 1.4-4.9 2.3-8.3 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>Entrar con Google</button>
+  <div class="logo"><svg viewBox="0 0 24 24"><path d="M6 3v3M6 15v4M12 2v4M12 16v5M18 5v3M18 16v3"/><rect x="4" y="6" width="4" height="9" rx=".5"/><rect x="10" y="6" width="4" height="10" rx=".5"/><rect x="16" y="8" width="4" height="8" rx=".5"/></svg></div>
+  <h2>Richy Terminal</h2><p>Acceso privado. Entra con tu cuenta de Google.</p>
+  <button class="gbtn" id="gbtn"><svg viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.6 5.9c4.4-4.1 7-10.1 7-17.6z"/><path fill="#FBBC05" d="M10.5 28.7c-.5-1.5-.8-3-.8-4.7s.3-3.2.8-4.7l-7.9-6.1C.9 16.4 0 20.1 0 24s.9 7.6 2.6 10.8l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.6-5.9c-2.1 1.4-4.9 2.3-8.3 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>Entrar con Google</button>
   <div class="gmsg" id="gmsg"></div>
   <button class="lnk" id="gswitch" style="display:none;margin-top:10px">Usar otra cuenta</button>
 </div></div>
-<header>
-  <div class="brand"><div class="logo">R</div><div>Richy Terminal<small>Panel de trading y riesgo</small></div></div>
-  <div style="display:flex;gap:10px;align-items:center"><span class="demo" id="demo"></span><button class="lnk" id="logout" style="display:none">Salir</button><span class="pill"><i class="dot" id="dot"></i><span id="mode">—</span></span></div>
-</header>
+
 <main>
-  <div class="alert" id="alert"></div>
-  <div class="grid kpis" id="kpis"></div>
-  <div class="grid row">
-    <div class="card"><h3>Curva de capital</h3><svg id="chart" viewBox="0 0 800 280" preserveAspectRatio="none"></svg></div>
-    <div class="card"><h3>Estrategias</h3><div id="strats"></div></div>
+  <div class="brand">
+    <div class="logo"><svg viewBox="0 0 24 24"><path d="M6 3v3M6 15v4M12 2v4M12 16v5M18 5v3M18 16v3"/><rect x="4" y="6" width="4" height="9" rx=".5"/><rect x="10" y="6" width="4" height="10" rx=".5"/><rect x="16" y="8" width="4" height="8" rx=".5"/></svg>
+      <div><h1>RICHY TERMINAL</h1><small>PANEL DE TRADING Y RIESGO</small></div></div>
+    <div class="chips">
+      <span class="demo" id="demo"></span>
+      <span class="chip" id="symchip"></span>
+      <span class="chip" id="modechip"><i class="d" id="dot"></i><span id="mode">—</span></span>
+      <button class="chip" id="logout" style="display:none">Salir</button>
+    </div>
   </div>
-  <div class="card" style="margin-top:16px"><h3>Historial de operaciones</h3>
-    <div style="overflow-x:auto"><table style="min-width:520px"><thead><tr><th>Cierre</th><th>Lado</th><th>Entrada</th><th>Salida</th><th>Motivo</th><th style="text-align:right">P&amp;L</th></tr></thead><tbody id="trades"></tbody></table></div></div>
+  <div class="alert" id="alert"></div>
+  <div class="tabs" id="tabs">
+    <button class="tab on" data-v="panel"><svg class="i" viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>Panel</button>
+    <button class="tab" data-v="ops"><svg class="i" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>Operaciones</button>
+    <button class="tab" data-v="cfg"><svg class="i" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>Ajustes</button>
+  </div>
+
+  <section class="view on" id="v-panel">
+    <div class="grid kpis" id="kpis"></div>
+    <div class="sec">Posición</div><div id="pos"></div>
+    <div class="sec">Capital y estrategias</div>
+    <div class="grid row">
+      <div class="card"><svg class="chart" id="chart" viewBox="0 0 800 280" preserveAspectRatio="none"></svg></div>
+      <div class="card" id="strats"></div>
+    </div>
+    <div class="sec">Últimas operaciones</div>
+    <div class="tw"><table class="tl"><thead><tr><th>Cierre</th><th>Lado</th><th>Entrada</th><th>Salida</th><th>Motivo</th><th style="text-align:right">P&amp;L</th></tr></thead><tbody id="trades"></tbody></table></div>
+  </section>
+
+  <section class="view" id="v-ops">
+    <div class="sec">Historial completo</div>
+    <div class="tw"><table class="tl"><thead><tr><th>Entrada</th><th>Cierre</th><th>Lado</th><th>Entrada $</th><th>Salida $</th><th>Cant.</th><th>Motivo</th><th style="text-align:right">P&amp;L</th></tr></thead><tbody id="alltrades"></tbody></table></div>
+  </section>
+
+  <section class="view" id="v-cfg">
+    <div class="set">
+      <div class="card"><h4>Interfaz</h4>
+        <div class="fld"><span>Color de acento</span><div class="themes" id="themes"></div></div>
+      </div>
+      <div class="card"><h4>Alertas y sonido</h4>
+        <div class="fld"><span>Sonido activado</span><button class="sw" id="s-on" aria-label="Sonido"></button></div>
+        <div class="fld"><span>Volumen</span><input type="range" id="s-vol" min="0" max="1" step="0.05"></div>
+        <div class="fld"><span>Al ganar</span><span><select id="s-win"><option>Campana</option><option>Moneda</option><option>Arpegio</option></select> <button class="btn" data-test="win">Probar</button></span></div>
+        <div class="fld"><span>Al perder</span><span><select id="s-loss"><option>Grave</option><option>Alerta</option><option>Silencio</option></select> <button class="btn" data-test="loss">Probar</button></span></div>
+        <div class="fld"><span>Al abrir posición</span><button class="sw" id="s-open" aria-label="Sonido al abrir"></button></div>
+        <div class="fld"><span>Solo si |P&amp;L| ≥ (USDT)</span><input type="number" id="s-min" min="0" step="1" style="width:90px"></div>
+      </div>
+    </div>
+    <p style="color:var(--mut);font-size:.8rem;margin-top:14px">Estos ajustes se guardan solo en este navegador. Para el riesgo y las estrategias del bot usa los interruptores del Panel y la configuración del servidor.</p>
+  </section>
 </main>
+
 <script type="module">
 // Opcional: pega aquí tu firebaseConfig. Si lo dejas en null, en Firebase Hosting se carga solo
 // desde /__/firebase/init.json. Sin ninguna config (abierto como archivo), corre en modo DEMO.
@@ -74,68 +139,147 @@ const FIREBASE_CONFIG = {   // pública por diseño: la seguridad la dan el logi
   measurementId: "G-YP0VYC31WT"
 };
 
-const $ = s => document.querySelector(s), fmt = n => n.toLocaleString("es", {maximumFractionDigits: 2});
-const state = {equity: [], trades: [], status: {}, strats: {trend: true, meanrev: true, grid: false, funding: true}};
+const $ = s => document.querySelector(s), fmt = n => (+n).toLocaleString("es", {maximumFractionDigits: 2});
+const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+const state = {equity: [], trades: [], status: {}, strats: {trend: true, meanrev: true, grid: false, funding: false}};
 const LABELS = {trend: ["Seguir tendencia", "EMA + ADX, stop por ATR"], meanrev: ["Reversión a la media", "Z-score, rango"],
-                grid: ["Grid trading", "Órdenes escalonadas en rango"], funding: ["Arbitraje de funding", "Spot largo + futuro corto"]};
+                grid: ["Grid trading", "Aún no se ejecuta en vivo"], funding: ["Arbitraje de funding", "Aún no se ejecuta en vivo"]};
 let setFlag = async (k, v) => { state.strats[k] = v; render(); };
 
+/* ---------- ajustes locales (tema + sonido) ---------- */
+const THEMES = {"Azul": ["#4c8dff", "#2a4a8a"], "Teal": ["#2bb5a0", "#1b6b5f"], "Ámbar": ["#e0a030", "#7a5a1c"], "Grafito": ["#9aa7b8", "#4a5463"]};
+const DEF = {theme: "Azul", sound: true, vol: 0.5, win: "Campana", loss: "Grave", open: true, min: 0};
+let cfg = {...DEF};
+try { cfg = {...DEF, ...JSON.parse(localStorage.getItem("richy_cfg") || "{}")}; } catch (e) {}
+const saveCfg = () => { try { localStorage.setItem("richy_cfg", JSON.stringify(cfg)); } catch (e) {} applyCfg(); };
+function applyCfg() {
+  const [a, b] = THEMES[cfg.theme] || THEMES.Azul;
+  document.documentElement.style.setProperty("--ac", a); document.documentElement.style.setProperty("--ac2", b);
+  $("#themes").innerHTML = Object.entries(THEMES).map(([n, [c]]) => `<div class="th ${n === cfg.theme ? "on" : ""}" data-t="${n}" style="background:${c}" title="${n}"></div>`).join("");
+  $("#s-on").className = "sw" + (cfg.sound ? " on" : ""); $("#s-open").className = "sw" + (cfg.open ? " on" : "");
+  $("#s-vol").value = cfg.vol; $("#s-win").value = cfg.win; $("#s-loss").value = cfg.loss; $("#s-min").value = cfg.min;
+  chart();
+}
+
+/* ---------- sonido (WebAudio, sin archivos) ---------- */
+let ac = null;
+const audio = () => { try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); if (ac.state === "suspended") ac.resume(); } catch (e) {} return ac; };
+function tone(f, t0, d, type = "sine", g = 1) {
+  const c = audio(); if (!c) return;
+  const o = c.createOscillator(), a = c.createGain(), t = c.currentTime + t0;
+  o.type = type; o.frequency.value = f; o.connect(a); a.connect(c.destination);
+  a.gain.setValueAtTime(0, t); a.gain.linearRampToValueAtTime(cfg.vol * g * .4, t + .02); a.gain.exponentialRampToValueAtTime(.0001, t + d);
+  o.start(t); o.stop(t + d + .05);
+}
+const SND = {
+  Campana: () => { tone(988, 0, .9); tone(1319, .12, 1.1); tone(1760, .26, 1.3, "sine", .8); },
+  Moneda: () => { tone(1318, 0, .12, "square", .5); tone(1760, .1, .5, "square", .5); },
+  Arpegio: () => [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, i * .09, .5, "triangle")),
+  Grave: () => { tone(196, 0, .5, "sawtooth", .7); tone(147, .25, .8, "sawtooth", .7); },
+  Alerta: () => { for (let i = 0; i < 3; i++) tone(880, i * .22, .15, "square", .6); },
+  Apertura: () => { tone(660, 0, .15, "triangle"); tone(880, .12, .3, "triangle"); },
+  Silencio: () => {},
+};
+const play = n => { if (cfg.sound && SND[n]) SND[n](); };
+document.addEventListener("click", () => audio(), {once: true});     // los navegadores exigen un clic antes de dar sonido
+
+/* ---------- alertas por cambios reales ---------- */
+let primed = false, seen = new Set(), hadPos = null;
+function alerts() {
+  const keys = state.trades.map(t => t.entry_time + "|" + t.exit_time), hasPos = !!state.status.position;
+  if (primed) {
+    state.trades.forEach((t, i) => { if (!seen.has(keys[i]) && Math.abs(t.pnl) >= cfg.min) play(t.pnl >= 0 ? cfg.win : cfg.loss); });
+    if (hasPos && !hadPos && cfg.open) play("Apertura");
+  }
+  keys.forEach(k => seen.add(k)); hadPos = hasPos;
+  if (state.equity.length || state.trades.length || Object.keys(state.status).length) primed = true;
+}
+
+/* ---------- datos y render ---------- */
 function stats() {
-  const e = state.equity.map(p => p.v); if (e.length < 3) return {};
+  const e = state.equity.map(p => p.v); if (e.length < 3) return {last: e.at(-1) || 0};
   let peak = e[0], mdd = 0; const r = [];
   e.forEach((v, i) => { peak = Math.max(peak, v); mdd = Math.min(mdd, v / peak - 1); if (i) r.push(v / e[i - 1] - 1); });
   const m = r.reduce((a, b) => a + b, 0) / r.length, sd = Math.sqrt(r.reduce((a, b) => a + (b - m) ** 2, 0) / r.length) || 1;
   const w = state.trades.filter(t => t.pnl > 0).length;
   return {ret: e.at(-1) / e[0] - 1, pnl: e.at(-1) - e[0], mdd, sharpe: m / sd * Math.sqrt(8760), last: e.at(-1), win: state.trades.length ? w / state.trades.length : 0};
 }
+const IC = {wallet: '<path d="M3 7h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7zM3 7l12-3v3M16 14h2"/>', trend: '<path d="M3 17l6-6 4 4 8-8M15 7h6v6"/>',
+  pulse: '<path d="M3 12h4l3-8 4 16 3-8h4"/>', scale: '<path d="M12 3v18M5 7h14M5 7l-3 8a3 3 0 0 0 6 0L5 7zM19 7l-3 8a3 3 0 0 0 6 0l-3-8z"/>', target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/>'};
+const ico = n => `<svg class="i" viewBox="0 0 24 24">${IC[n]}</svg>`;
+const when = s => esc((s || "").slice(0, 16).replace("T", " "));
 function render() {
-  const s = stats(), st = state.status, cls = v => v >= 0 ? "up" : "dn", sg = v => (v >= 0 ? "+" : "") + fmt(v);
+  alerts();
+  const s = stats(), st = state.status, cls = v => v >= 0 ? "pos" : "neg", sg = v => (v >= 0 ? "+" : "") + fmt(v);
   $("#kpis").innerHTML = [
-    ["Capital", "$" + fmt(s.last || 0), `<span class="${cls(s.pnl||0)}">${sg(s.pnl || 0)} USDT</span>`],
-    ["Retorno", sg((s.ret || 0) * 100) + "%", `<span class="${cls(s.ret||0)}">acumulado</span>`],
-    ["Drawdown máx.", fmt((s.mdd || 0) * 100) + "%", `<span class="dn">peor caída</span>`],
-    ["Sharpe", fmt(s.sharpe || 0), `<span style="color:var(--mut)">ganancia vs. riesgo</span>`],
-    ["Win rate", fmt((s.win || 0) * 100) + "%", `<span style="color:var(--mut)">${state.trades.length} operaciones</span>`],
-  ].map(([l, v, sub]) => `<div class="card k"><div class="l">${l}</div><div class="v mono">${v}</div><div class="s">${sub}</div></div>`).join("");
+    ["wallet", "Capital", "$" + fmt(s.last || 0), `<span class="${cls(s.pnl || 0)}">${sg(s.pnl || 0)} USDT</span>`, ""],
+    ["trend", "Retorno", sg((s.ret || 0) * 100) + "%", "acumulado", cls(s.ret || 0)],
+    ["pulse", "Drawdown máx.", fmt((s.mdd || 0) * 100) + "%", "peor caída", s.mdd ? "neg" : ""],
+    ["scale", "Sharpe", fmt(s.sharpe || 0), "ganancia vs. riesgo", ""],
+    ["target", "Win rate", fmt((s.win || 0) * 100) + "%", state.trades.length + " operaciones", ""],
+  ].map(([i, l, v, sub, c]) => `<div class="card k"><div class="l">${ico(i)}${l}</div><div class="v mono ${c}">${v}</div><div class="s">${sub}</div></div>`).join("");
   const off = st.killed || st.halted_today;
-  $("#dot").className = "dot" + (off ? " off" : ""); $("#mode").textContent = st.killed ? "KILL SWITCH" : st.halted_today ? "PAUSADO (límite diario)" : (st.mode || "paper").toUpperCase();
+  $("#modechip").className = "chip " + (off ? "off" : "on"); $("#mode").textContent = st.killed ? "KILL SWITCH" : st.halted_today ? "PAUSADO (límite diario)" : (st.mode || "paper").toUpperCase();
+  $("#symchip").textContent = st.symbol || "BTC/USDT";
   const al = $("#alert"); al.style.display = off ? "block" : "none"; al.textContent = st.killed ? "Kill switch activado: " + (st.kill_reason || "") : "Pérdida diaria máxima alcanzada. El bot reanuda mañana.";
+  const p = st.position;
+  $("#pos").innerHTML = p ? `<div class="poscard open"><b><span class="tag ${p.side > 0 ? "l" : "s"}">${p.side > 0 ? "LONG" : "SHORT"}</span> posición abierta</b>
+    <span class="f">Cantidad <span>${fmt(p.qty)}</span></span><span class="f">Entrada <span>${fmt(p.entry)}</span></span><span class="f">Stop <span>${fmt(p.stop)}</span></span><span class="f">Desde <span>${when(p.since)}</span></span></div>`
+    : `<div class="poscard"><span class="f">Sin posición abierta. El bot espera una señal.</span></div>`;
   $("#strats").innerHTML = Object.entries(LABELS).map(([k, [n, d]]) =>
     `<div class="strat"><div><b>${n}</b><span>${d}</span></div><button class="sw ${state.strats[k] ? "on" : ""}" data-k="${k}" aria-label="${n}"></button></div>`).join("");
-  document.querySelectorAll(".sw").forEach(b => b.onclick = () => setFlag(b.dataset.k, !state.strats[b.dataset.k]));
-  $("#trades").innerHTML = state.trades.slice(-12).reverse().map(t => `<tr><td class="mono">${(t.exit_time || "").slice(0, 16).replace("T", " ")}</td>
-    <td><span class="tag ${t.side > 0 ? "l" : "s"}">${t.side > 0 ? "LONG" : "SHORT"}</span></td><td class="mono">${fmt(t.entry)}</td><td class="mono">${fmt(t.exit)}</td>
-    <td>${t.reason}</td><td class="mono ${cls(t.pnl)}" style="text-align:right">${sg(t.pnl)}</td></tr>`).join("") || `<tr><td colspan="6" style="color:var(--mut)">Sin operaciones todavía</td></tr>`;
+  document.querySelectorAll("#strats .sw").forEach(b => b.onclick = () => setFlag(b.dataset.k, !state.strats[b.dataset.k]));
+  const row = t => `<td><span class="tag ${t.side > 0 ? "l" : "s"}">${t.side > 0 ? "LONG" : "SHORT"}</span></td>`;
+  const empty = n => `<tr><td colspan="${n}" style="color:var(--mut)">Sin operaciones todavía</td></tr>`;
+  $("#trades").innerHTML = state.trades.slice(-12).reverse().map(t => `<tr><td>${when(t.exit_time)}</td>${row(t)}<td>${fmt(t.entry)}</td><td>${fmt(t.exit)}</td><td>${esc(t.reason)}</td><td class="${cls(t.pnl)}" style="text-align:right">${sg(t.pnl)}</td></tr>`).join("") || empty(6);
+  $("#alltrades").innerHTML = state.trades.slice().reverse().map(t => `<tr><td>${when(t.entry_time)}</td><td>${when(t.exit_time)}</td>${row(t)}<td>${fmt(t.entry)}</td><td>${fmt(t.exit)}</td><td>${t.qty ? (+t.qty).toFixed(5) : ""}</td><td>${esc(t.reason)}</td><td class="${cls(t.pnl)}" style="text-align:right">${sg(t.pnl)}</td></tr>`).join("") || empty(8);
   chart();
 }
 function chart() {
-  const e = state.equity.map(p => p.v), svg = $("#chart"); if (e.length < 2) return;
+  const e = state.equity.map(p => p.v), svg = $("#chart"); if (e.length < 2) { svg.innerHTML = `<text x="400" y="140" fill="#7d8a9c" font-size="14" text-anchor="middle">La curva se dibuja con la primera vela cerrada (≈ cada hora)</text>`; return; }
   const lo = Math.min(...e), hi = Math.max(...e), W = 800, H = 280, X = i => i / (e.length - 1) * W, Y = v => H - 16 - (v - lo) / (hi - lo || 1) * (H - 40);
-  const d = e.map((v, i) => `${i ? "L" : "M"}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(""), up = e.at(-1) >= e[0], c = up ? "#2ee59d" : "#ff5c7a";
+  const d = e.map((v, i) => `${i ? "L" : "M"}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(""), c = e.at(-1) >= e[0] ? "#26a69a" : "#ef5350";
   let peak = -1e18; const dd = e.map((v, i) => (peak = Math.max(peak, v), `${i ? "L" : "M"}${X(i).toFixed(1)},${Y(peak).toFixed(1)}`)).join("");
-  svg.innerHTML = `<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c}" stop-opacity=".28"/><stop offset="1" stop-color="${c}" stop-opacity="0"/></linearGradient></defs>
-  ${[0, 1, 2, 3].map(i => `<line x1="0" x2="${W}" y1="${20 + i * 75}" y2="${20 + i * 75}" stroke="#1d2635" stroke-dasharray="3 5"/>`).join("")}
-  <path d="${dd}" fill="none" stroke="#e7c26b" stroke-opacity=".45" stroke-width="1" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>
-  <path d="${d}L${W},${H}L0,${H}Z" fill="url(#g)"/><path d="${d}" fill="none" stroke="${c}" stroke-width="2" vector-effect="non-scaling-stroke"/>`;
+  svg.innerHTML = `<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c}" stop-opacity=".25"/><stop offset="1" stop-color="${c}" stop-opacity="0"/></linearGradient></defs>
+  ${[0, 1, 2, 3].map(i => `<line x1="0" x2="${W}" y1="${20 + i * 75}" y2="${20 + i * 75}" stroke="#1f2733" stroke-dasharray="3 5"/>`).join("")}
+  <path d="${dd}" fill="none" stroke="var(--ac)" stroke-opacity=".5" stroke-width="1" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>
+  <path d="${d}L${W},${H}L0,${H}Z" fill="url(#g)"/><path d="${d}" fill="none" stroke="${c}" stroke-width="1.8" vector-effect="non-scaling-stroke"/>`;
 }
+
+/* ---------- navegación y ajustes ---------- */
+document.querySelectorAll(".tab").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".tab").forEach(x => x.classList.toggle("on", x === b));
+  document.querySelectorAll(".view").forEach(v => v.classList.toggle("on", v.id === "v-" + b.dataset.v)); chart();
+});
+$("#themes").onclick = e => { const t = e.target.dataset.t; if (t) { cfg.theme = t; saveCfg(); } };
+$("#s-on").onclick = () => { cfg.sound = !cfg.sound; saveCfg(); };
+$("#s-open").onclick = () => { cfg.open = !cfg.open; saveCfg(); };
+$("#s-vol").oninput = e => { cfg.vol = +e.target.value; saveCfg(); };
+$("#s-win").onchange = e => { cfg.win = e.target.value; saveCfg(); };
+$("#s-loss").onchange = e => { cfg.loss = e.target.value; saveCfg(); };
+$("#s-min").onchange = e => { cfg.min = Math.max(0, +e.target.value || 0); saveCfg(); };
+document.querySelectorAll("[data-test]").forEach(b => b.onclick = () => { const w = cfg.sound; cfg.sound = true; play(b.dataset.test === "win" ? cfg.win : cfg.loss); cfg.sound = w; });
+
+/* ---------- demo / Firebase ---------- */
 function demo() {
   let v = 10000, seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   for (let i = 0; i < 240; i++) { v *= 1 + (rnd() - 0.46) * 0.012; state.equity.push({t: i, v}); }
-  for (let i = 0; i < 14; i++) { const side = rnd() > .4 ? 1 : -1, en = 60000 + rnd() * 3000, pnl = (rnd() - .4) * 220;
-    state.trades.push({exit_time: new Date(Date.now() - (14 - i) * 3.6e6 * 5).toISOString(), side, entry: en, exit: en + pnl * 4, pnl, reason: ["señal", "stop", "señal"][i % 3]}); }
-  state.status = {mode: "paper"}; $("#demo").textContent = "MODO DEMO · datos de ejemplo"; render();
+  for (let i = 0; i < 14; i++) { const side = rnd() > .4 ? 1 : -1, en = 60000 + rnd() * 3000, pnl = (rnd() - .4) * 220, ex = new Date(Date.now() - (14 - i) * 18e6);
+    state.trades.push({entry_time: new Date(+ex - 9e6).toISOString(), exit_time: ex.toISOString(), side, entry: en, exit: en + pnl * 4, qty: 0.04, pnl, reason: ["signal", "stop", "signal"][i % 3]}); }
+  state.status = {mode: "paper", symbol: "BTC/USDT", position: {side: 1, qty: 0.077, entry: 62715.8, stop: 61943.9, since: new Date(Date.now() - 4e6).toISOString()}};
+  $("#demo").textContent = "MODO DEMO · datos de ejemplo"; render();
 }
 const gate = (msg = "", denied = false) => { $("#gate").style.display = "grid"; $("#gmsg").textContent = msg; $("#gswitch").style.display = denied ? "inline" : "none"; $("#gbtn").disabled = false; };
-async function loadConfig() {                       // 1) la que pegues arriba, 2) la que Firebase Hosting publica sola
+async function loadConfig() {
   if (FIREBASE_CONFIG && location.protocol.startsWith("http")) return FIREBASE_CONFIG;
   try { const r = await fetch("/__/firebase/init.json"); if (r.ok) { const c = await r.json(); if (c.apiKey) return c; } } catch (e) {}
   return null;
 }
-async function live(cfg) {
+async function live(cfgFb) {
   const base = "https://www.gstatic.com/firebasejs/10.12.2/";
   const {initializeApp} = await import(base + "firebase-app.js");
   const fs = await import(base + "firebase-firestore.js"), au = await import(base + "firebase-auth.js");
-  const app = initializeApp(cfg), db = fs.getFirestore(app), auth = au.getAuth(app), provider = new au.GoogleAuthProvider();
+  const app = initializeApp(cfgFb), db = fs.getFirestore(app), auth = au.getAuth(app), provider = new au.GoogleAuthProvider();
   provider.setCustomParameters({prompt: "select_account"});
   let unsubs = [];
   const stop = () => { unsubs.forEach(u => u()); unsubs = []; };
@@ -152,26 +296,27 @@ async function live(cfg) {
   $("#gswitch").onclick = async () => { await au.signOut(auth); gate(); };
   $("#logout").onclick = () => au.signOut(auth);
   au.onAuthStateChanged(auth, user => {
-    stop(); state.equity = []; state.trades = []; state.status = {};
-    if (!user) { $("#logout").style.display = "none"; render(); return gate(); }
-    $("#gate").style.display = "none"; $("#logout").style.display = "inline"; $("#demo").textContent = user.email;
+    stop(); state.equity = []; state.trades = []; state.status = {}; primed = false; seen = new Set(); hadPos = null;
+    if (!user) { $("#logout").style.display = "none"; $("#demo").textContent = ""; render(); return gate(); }
+    $("#gate").style.display = "none"; $("#logout").style.display = "inline-flex"; $("#demo").textContent = user.email;
     unsubs = [
       fs.onSnapshot(fs.doc(db, "status/current"), d => { state.status = d.data() || {}; render(); }, deny),
       fs.onSnapshot(fs.query(fs.collection(db, "equity"), fs.orderBy("t"), fs.limitToLast(500)), q => { state.equity = q.docs.map(x => x.data()); render(); }, deny),
-      fs.onSnapshot(fs.query(fs.collection(db, "trades"), fs.orderBy("exit_time"), fs.limitToLast(50)), q => { state.trades = q.docs.map(x => x.data()); render(); }, deny),
+      fs.onSnapshot(fs.query(fs.collection(db, "trades"), fs.orderBy("exit_time"), fs.limitToLast(100)), q => { state.trades = q.docs.map(x => x.data()); render(); }, deny),
       fs.onSnapshot(fs.collection(db, "strategies"), q => { q.docs.forEach(x => state.strats[x.id] = !!x.data().enabled); render(); }, deny),
     ];
   });
   setFlag = async (k, v) => { state.strats[k] = v; render(); try { await fs.setDoc(fs.doc(db, "strategies", k), {enabled: v}); } catch (e) { deny(e); } };
   render();
 }
-loadConfig().then(cfg => {
-  if (cfg) return live(cfg).catch(e => { console.error(e); gate("No se pudo cargar Firebase. Recarga la página."); });
-  if (location.protocol.startsWith("http")) {       // publicado en internet: nunca caer al demo en silencio
+applyCfg();
+loadConfig().then(c => {
+  if (c) return live(c).catch(e => { console.error(e); gate("No se pudo cargar Firebase. Recarga la página."); });
+  if (location.protocol.startsWith("http")) {
     $("#gbtn").style.display = "none";
     return gate("Falta registrar la app web de Firebase (Configuración del proyecto > Tus apps > Web). Luego vuelve a publicar.");
   }
-  demo();                                           // abierto como archivo local: demo con datos de ejemplo
+  demo();
 });
 </script>
 </body>
