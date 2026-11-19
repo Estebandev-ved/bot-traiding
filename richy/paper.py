@@ -33,7 +33,8 @@ class PaperSession:
             json.dump(self.state, f)
         os.replace(tmp, self.path)
 
-    def update(self, closed: pd.DataFrame, strategy: Strategy, cost: CostModel = None, risk: RiskConfig = None):
+    def update(self, closed: pd.DataFrame, strategy: Strategy, cost: CostModel = None, risk: RiskConfig = None,
+               pause: bool = False):
         """`closed` = solo velas CERRADAS. Devuelve el resultado del motor con la posición abierta."""
         st = self.state
         if st["start"] is None:
@@ -45,7 +46,8 @@ class PaperSession:
         for ts in closed.index[closed.index >= start_ts]:
             key = ts.isoformat()
             if key not in st["signals"]:                       # barra nueva: se congela con las flags de ahora
-                st["signals"][key] = [int(live.loc[ts, "signal"]), float(live.loc[ts, "stop_dist"])]
+                sig0 = 0 if pause else int(live.loc[ts, "signal"])        # pausa por noticias: queda sin posición
+                st["signals"][key] = [sig0, float(live.loc[ts, "stop_dist"])]
             sig, sd = st["signals"][key]
             table.loc[ts, ["signal", "stop_dist"]] = [sig, sd]
         self._save()

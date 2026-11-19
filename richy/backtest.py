@@ -169,14 +169,16 @@ def backtest_funding_arb(funding: pd.Series, equity0: float = 10_000.0, enter_ab
     notional = equity0 / (1 + 1 / leverage_short)   # parte del capital va a spot, parte al margen del corto
     in_pos, equity, trades, curve = False, equity0, 0, []
     for ts, rate in funding.items():
-        if not in_pos and rate >= enter_above:
+        if in_pos:                           # solo cobra si YA estaba dentro antes de este pago (sin mirar adelante)
+            equity += notional * rate        # el que está corto cobra si rate>0 (y paga si <0)
+        if not in_pos and rate >= enter_above:      # decide con la tasa ya conocida; cobra desde el siguiente pago
             equity -= 2 * notional * (cost.fee + cost.slippage)
             in_pos, trades = True, trades + 1
         elif in_pos and rate < exit_below:
             equity -= 2 * notional * (cost.fee + cost.slippage)
             in_pos = False
-        if in_pos:
-            equity += notional * rate        # el que está corto cobra si rate>0 (y paga si <0)
         curve.append(equity)
     eq = pd.Series(curve, index=funding.index)
+    if len(eq) > 1:        # punto inicial con el capital sin tocar: así el costo de entrada cuenta en retorno y drawdown
+        eq = pd.concat([pd.Series([equity0], index=[eq.index[0] - (eq.index[1] - eq.index[0])]), eq])
     return {"equity": eq, "entries": trades, "metrics": metrics(eq, [], 3 * 365)}

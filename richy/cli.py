@@ -14,11 +14,18 @@ from .strategies import TrendATR, MeanReversion, RegimeSwitched
 from .cloud import get_sink
 
 
+def real_csv(a, funding=False):
+    """Solo datos reales: --csv o el archivo que baja `python -m richy.download`. Nunca inventa datos."""
+    name = f"datos/{a.symbol.replace('/', '')}_{'funding' if funding else a.timeframe}.csv"
+    path = a.csv if (a.csv and not funding) else name
+    if not os.path.exists(path):
+        raise SystemExit(f"No hay datos reales en {path}.\nBájalos primero:  python -m richy.download --symbol {a.symbol} "
+                         f"--timeframe {a.timeframe} --bars 8000{' --funding' if funding else ''}")
+    return path
+
+
 def load(a):
-    if a.csv:
-        df = pd.read_csv(a.csv, index_col=0, parse_dates=True)
-        return df
-    return data.synthetic_ohlcv()
+    return pd.read_csv(real_csv(a), index_col=0, parse_dates=True)
 
 
 def build(a, df, enabled=None):
@@ -41,6 +48,7 @@ def main(argv=None):
     p.add_argument("--symbol", default="BTC/USDT"); p.add_argument("--exchange", default="binance")
     p.add_argument("--timeframe", default="1h"); p.add_argument("--real", action="store_true")
     p.add_argument("--mirror", default=os.getenv("BINANCE_MIRROR"))
+    p.add_argument("--no-news", action="store_true", help="desactiva el filtro de noticias")
     a = p.parse_args(argv)
 
     if a.cmd == "backtest":
@@ -58,14 +66,33 @@ def main(argv=None):
         r = backtest_grid(df.iloc[:800], c * 0.9, c * 1.1, 12)
         show("Grid", {**r["metrics"], "ciclos": r["cycles"]})
     elif a.cmd == "funding":
-        r = backtest_funding_arb(data.synthetic_funding()); show("Arbitraje de funding", r["metrics"])
+        f = pd.read_csv(real_csv(a, funding=True), index_col=0, parse_dates=True)["rate"]
+        r = backtest_funding_arb(f); show(f"Arbitraje de funding ({len(f)} pagos reales)", r["metrics"])
     else:
         live(a)
 
 
+def _clean(d):
+    """Firestore no acepta fechas de pandas, numpy ni inf/nan: lo deja todo en tipos simples."""
+    import math
+    if isinstance(d, dict):
+        return {k: _clean(v) for k, v in d.items()}
+    if isinstance(d, (list, tuple)):
+        return [_clean(v) for v in d]
+    if hasattr(d, "isoformat"):
+        return d.isoformat()
+    if isinstance(d, float) and not math.isfinite(d):
+        return None
+    return d.item() if hasattr(d, "item") else d
+
+
 def live(a):
-    """Paper trading en vivo (sin dinero). Cada ciclo: velas cerradas -> simulación -> Firestore."""
+    """Paper trading en vivo (sin dinero). Cada ciclo: velas cerradas -> filtro de noticias ->
+    simulación -> semáforo -> Firestore. Además simula el arbitraje de funding con datos reales."""
     from .paper import PaperSession
+    from .scorecard import scorecard
+    from .sentiment import SentimentFilter
+    from .funding_paper import FundingPaper
     if a.real:
         raise SystemExit("El modo --real todavía no está habilitado: primero hay que validar la estrategia en paper.")
     sink = get_sink()
@@ -73,8 +100,11 @@ def live(a):
     tf_s = feed.parse_timeframe(a.timeframe)
     session = PaperSession()
     risk = RiskManager(RiskConfig(), equity=session.state["equity0"])
+    news = None if a.no_news else SentimentFilter()
+    funding, fx, f_last, f_warned = FundingPaper(), None, 0.0, False
     sent_eq, sent_tr = set(), set()
-    print(f"[paper] {a.symbol} {a.timeframe} · capital inicial {session.state['equity0']:,.0f} USDT · Ctrl+C para detener")
+    print(f"[paper] {a.symbol} {a.timeframe} · capital inicial {session.state['equity0']:,.0f} USDT · "
+          f"noticias={'apagado' if news is None else 'activo'} · Ctrl+C para detener")
     while not risk.killed:
         try:
             df = data.fetch_ohlcv_paged(feed, a.symbol, a.timeframe, limit_total=1000)
@@ -86,8 +116,9 @@ def live(a):
         risk.check_price(closed["close"].iloc[-2], closed["close"].iloc[-1])
         if risk.killed:
             break
-        flags = sink.strategy_flags(["trend", "meanrev"])
-        res = session.update(closed, build(a, closed, enabled=flags))
+        flags = sink.strategy_flags(["trend", "meanrev", "funding"])
+        sent = news.check() if news else {"pause": False, "reasons": [], "fng": None, "headlines": [], "ok": False}
+        res = session.update(closed, build(a, closed, enabled=flags), pause=sent["pause"])
         eq = res["equity"]
         new_pts = [(ts.timestamp(), v) for ts, v in eq.items() if ts.timestamp() not in sent_eq]
         if new_pts:
@@ -97,11 +128,27 @@ def live(a):
             if key not in sent_tr:
                 sink.trade(t); sent_tr.add(key)
         m, rk, op = res["metrics"], res["risk"], res["open"]
-        sink.status(symbol=a.symbol, mode="paper", equity=float(eq.iloc[-1]), total_return=m["total_return"],
+        card = scorecard(res, closed, pd.Timestamp(session.state["start"]))
+        sink.status(**_clean(dict(symbol=a.symbol, mode="paper", equity=float(eq.iloc[-1]), total_return=m["total_return"],
                     max_drawdown=m["max_drawdown"], trades=m["trades"], killed=rk["killed"], kill_reason=rk["kill_reason"],
-                    halted_today=rk["halted_today"], position=(None if not op else {k: (v.isoformat() if hasattr(v, "isoformat") else v) for k, v in op.items()}))
+                    halted_today=rk["halted_today"], position=op, scorecard=card, sentiment=sent)))
+        if flags.get("funding", True) and time.time() - f_last > 600:        # funding: cada 10 min, sin bloquear el bot
+            f_last = time.time()
+            try:
+                fx = fx or data.make_exchange(a.exchange, futures=True)
+                since = int((time.time() - 3 * 86400) * 1000)
+                fs = data.fetch_funding_history(fx, a.symbol + ":" + a.symbol.split("/")[1], since_ms=since)
+                if len(fs):
+                    sink.doc("funding", **_clean({**funding.update(fs), "enabled": True, "error": None}))
+                    f_warned = False
+            except Exception as e:
+                if not f_warned:
+                    print("[funding] sin datos (si Binance da 451, usa una VPN o un VPS fuera de tu región):", str(e)[:100]); f_warned = True
+                sink.doc("funding", error=str(e)[:160], enabled=True)
+        elif not flags.get("funding", True):
+            sink.doc("funding", enabled=False)
         print(f"[{closed.index[-1]}] capital={eq.iloc[-1]:,.2f} ret={m['total_return']:+.2%} ops={m['trades']} "
-              f"pos={'LONG' if op and op['side']>0 else 'SHORT' if op else '-'} kill={rk['killed']}")
+              f"pos={'LONG' if op and op['side']>0 else 'SHORT' if op else '-'} noticias={'PAUSA' if sent['pause'] else 'ok'} kill={rk['killed']}")
         time.sleep(60)
     print("KILL SWITCH:", risk.kill_reason)
     sink.status(killed=True, kill_reason=risk.kill_reason)

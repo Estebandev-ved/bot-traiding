@@ -14,6 +14,11 @@ Paquete `richy/` (el bot anterior `bot-richy.py` sigue intacto).
 | Firestore + panel con interruptores por estrategia | `richy/cloud.py`, `web/` | Panel probado en modo demo; Firebase real sin probar |
 | TimescaleDB, Grafana, Docker | `infra/`, `docker-compose.yml` | Sin probar |
 
+## Datos reales, siempre
+El bot en vivo y los comandos `backtest`, `walkforward`, `grid` y `funding` usan **solo datos reales** (velas y funding
+de Binance, noticias RSS y el índice Fear & Greed). Si no hay datos, se detienen y te dicen cómo bajarlos; nunca inventan.
+Los datos sintéticos existen únicamente dentro de `tests/` para pruebas automáticas.
+
 ## Paper trading en vivo (sin dinero)
 ```powershell
 $env:GOOGLE_APPLICATION_CREDENTIALS="secrets\serviceAccountKey.json"
@@ -22,7 +27,11 @@ python -m richy.cli live --symbol BTC/USDT            # si Binance da 451: añad
 Cada vela cerrada simula las decisiones del bot con comisiones, slippage y límites de riesgo, y sube a Firestore el
 capital, las operaciones y el estado. La sesión arranca con 10,000 USDT simulados y sin posición, y se guarda en
 `paper_state.json` (bórralo para empezar de cero). Las señales ya tomadas quedan congeladas: apagar una estrategia
-desde el panel solo afecta a las velas nuevas. `--real` está bloqueado a propósito hasta validar la estrategia.
+desde el panel solo afecta a las velas nuevas.
+Cada ciclo calcula además el **semáforo "¿voy bien?"** (tiempo, operaciones, profit factor, Sharpe, caída máxima y
+comparación con comprar y mantener), aplica el **filtro de noticias** (solo pausa al bot; `--no-news` lo apaga) y simula
+el **arbitraje de funding** con tasas reales. Binance bloquea futuros en algunas regiones (451): en ese caso el panel lo dice.
+`--real` está bloqueado a propósito hasta validar la estrategia.
 
 ## Bajar velas reales
 ```bash

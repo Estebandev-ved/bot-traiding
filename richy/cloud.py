@@ -13,6 +13,7 @@ import time
 class NullSink:
     def status(self, **kw): pass
     def equity_point(self, ts, value): pass
+    def doc(self, name, **kw): pass
     def trade(self, t: dict): pass
     def equity_batch(self, points): pass
     def strategy_flags(self, names): return {n: True for n in names}
@@ -29,6 +30,9 @@ class FirebaseSink:
 
     def status(self, **kw):
         self.db.collection("status").document("current").set({**kw, "updated": time.time()}, merge=True)
+
+    def doc(self, name, **kw):
+        self.db.collection("status").document(name).set({**kw, "updated": time.time()}, merge=True)
 
     def equity_point(self, ts, value):
         self.db.collection("equity").document(str(int(ts))).set({"t": int(ts), "v": float(value)})

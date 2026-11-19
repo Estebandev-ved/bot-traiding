@@ -161,3 +161,88 @@ def test_paper_starts_at_initial_capital_and_respects_risk_limits(tmp_path):
     r = s.update(df, _strat(None, df))
     assert r["equity"].iloc[0] == 5_000.0
     assert min(r["equity"]) > 0
+
+
+# ---------------- semáforo, noticias, funding ----------------
+from datetime import datetime, timezone, timedelta
+from richy.scorecard import scorecard
+from richy import sentiment as snt
+from richy.funding_paper import FundingPaper
+
+
+def test_scorecard_waits_when_too_early_and_never_says_ready_with_losses(tmp_path):
+    df = data.synthetic_ohlcv(1300)
+    s = PaperSession(str(tmp_path / "p.json")); s.state["start"] = df.index[1100].isoformat()
+    res = s.update(df, _strat(None, df))
+    sc = scorecard(res, df, pd.Timestamp(s.state["start"]))
+    assert sc["state"] == "wait" and "Muy pronto" in sc["verdict"]
+    assert {c["key"] for c in sc["checks"]} >= {"days", "trades", "profit_factor", "sharpe", "max_drawdown", "vs_bh"}
+    import json; json.dumps(sc)                                   # serializable para Firestore (sin inf/nan)
+
+
+def test_scorecard_rejects_a_losing_bot_with_enough_sample():
+    idx = pd.date_range("2024-01-01", periods=2000, freq="1h", tz="UTC")
+    closed = pd.DataFrame({"close": 100.0}, index=idx)
+    eq = pd.Series(10_000 * (1 - 0.0001 * np.arange(2000)), index=idx)
+    res = {"equity": eq, "metrics": {"total_return": -0.2, "max_drawdown": -0.2, "sharpe": -2.0, "trades": 150, "profit_factor": 0.7, "win_rate": .3}}
+    sc = scorecard(res, closed, idx[0])
+    assert sc["state"] == "bad" and "No pasar a dinero real" in sc["verdict"]
+
+
+def test_news_filter_pauses_on_extremes_and_clusters_of_risk_headlines():
+    now = datetime(2026, 1, 1, 12, tzinfo=timezone.utc)
+    h = lambda t, m: (now - timedelta(minutes=m), t)
+    calm = snt.assess(50, [h("Bitcoin ETF inflows rise", 30)], now)
+    assert not calm["pause"]
+    assert snt.assess(6, [], now)["pause"] and snt.assess(95, [], now)["pause"]            # miedo / euforia extremos
+    risky = snt.assess(50, [h("Exchange hacked, millions drained", 20), h("Regulator sues major crypto firm", 60)], now)
+    assert risky["pause"] and "titulares de riesgo" in risky["reasons"][0]
+    old = snt.assess(50, [h("Exchange hacked", 600), h("Firm sues rival", 700)], now)       # titulares viejos no cuentan
+    assert not old["pause"]
+
+
+def test_news_filter_fails_open_and_reports_it():
+    def boom(url, timeout=8): raise OSError("sin red")
+    r = snt.SentimentFilter(get=boom).check(1000.0)
+    assert r["pause"] is False and r["ok"] is False
+
+
+def test_news_filter_parses_rss_and_caches():
+    rss = "<rss><channel><item><title>Exchange hack drains funds</title><pubDate>Thu, 01 Jan 2026 11:30:00 +0000</pubDate></item>" \
+          "<item><title>Protocol exploit discovered</title><pubDate>Thu, 01 Jan 2026 11:40:00 +0000</pubDate></item></channel></rss>"
+    calls = []
+    def get(url, timeout=8):
+        calls.append(url); return '{"data":[{"value":"40"}]}' if "alternative" in url else rss
+    f = snt.SentimentFilter(ttl=900, get=get)
+    now = datetime(2026, 1, 1, 12, tzinfo=timezone.utc).timestamp()
+    r = f.check(now); n = len(calls); f.check(now + 60)
+    assert r["pause"] and r["fng"] == 40 and len(calls) == n          # segunda llamada usa la caché
+
+
+def test_pause_freezes_flat_signals_for_new_bars_only(tmp_path):
+    df = data.synthetic_ohlcv(1500)
+    s = PaperSession(str(tmp_path / "p.json")); s.state["start"] = df.index[900].isoformat()
+    a = s.update(df.iloc[:1200], _strat(None, df.iloc[:1200]))
+    b = s.update(df, _strat(None, df), pause=True)                      # llega una noticia peligrosa
+    assert all(t["entry_time"] <= df.index[1200] for t in b["trades"] if t["entry_time"] > df.index[1199])
+    assert b["open"] is None or b["open"]["since"] <= df.index[1200]    # sin posiciones nuevas durante la pausa
+
+
+def test_funding_backtest_has_no_lookahead_and_costs_matter():
+    idx = pd.date_range("2024-01-01", periods=10, freq="8h", tz="UTC")
+    f = pd.Series([0.0, 0.0, 0.001, 0.0, 0.0, 0, 0, 0, 0, 0], index=idx)       # un único pago alto en el paso 2
+    r = backtest_funding_arb(f, 10_000, enter_above=0.0001, exit_below=0.0, cost=CostModel(fee=0, slippage=0))
+    assert r["equity"].iloc[-1] == 10_000                                       # no puede cobrar el pago que lo hizo entrar
+    steady = pd.Series(0.0003, index=pd.date_range("2024-01-01", periods=300, freq="8h", tz="UTC"))
+    free = backtest_funding_arb(steady, 10_000, cost=CostModel(fee=0, slippage=0))["metrics"]["total_return"]
+    paid = backtest_funding_arb(steady, 10_000, cost=CostModel(fee=0.001, slippage=0.001))["metrics"]["total_return"]
+    assert free > paid > 0
+
+
+def test_funding_paper_persists_and_reports(tmp_path):
+    idx = pd.date_range("2024-01-01", periods=40, freq="8h", tz="UTC")
+    f = pd.Series(0.0002, index=idx)
+    fp = FundingPaper(str(tmp_path / "f.json")); a = fp.update(f.iloc[:20])
+    b = FundingPaper(str(tmp_path / "f.json")).update(f)                       # reinicio: misma fecha de arranque
+    assert a["since"] == b["since"] and b["periods"] > a["periods"]
+    assert b["last_rate"] == 0.0002 and abs(b["apr"] - 0.0002 * 1095) < 1e-9

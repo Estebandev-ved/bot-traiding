@@ -61,6 +61,12 @@ input[type=range]{accent-color:var(--ac);width:140px}
 .gbtn svg{width:18px;height:18px;flex:none}.gbtn:hover{filter:brightness(.95)}.gbtn:disabled{opacity:.6;cursor:wait}
 .gmsg{margin-top:16px;font-size:13px;color:#f3b0ae;min-height:18px}.lnk{background:none;border:0;color:var(--mut);cursor:pointer;font:inherit;text-decoration:underline}
 .demo{color:var(--mut);font-size:.72rem}
+.chk{display:flex;gap:10px;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--line);font-size:.86rem}.chk:last-child{border:0}
+.chk i{width:9px;height:9px;border-radius:50%;flex:none;background:#566274;transform:translateY(-1px)}.chk.ok i{background:var(--win)}.chk.bad i{background:var(--loss)}
+.chk b{color:#fff;font-weight:500;min-width:170px}.chk .t{font-family:'JetBrains Mono',monospace;font-size:.8rem}.chk small{color:var(--mut);display:block;font-size:.72rem}
+.verdict{padding:10px 14px;border-radius:4px;margin-bottom:8px;font-size:.88rem;border:1px solid var(--line);border-left:3px solid #566274;background:#0d1117}
+.verdict.ok{border-left-color:var(--win)}.verdict.bad{border-left-color:var(--loss)}
+.two{grid-template-columns:1fr 1fr}@media(max-width:900px){.two{grid-template-columns:1fr}.chk b{min-width:130px}}
 @media(max-width:900px){.row{grid-template-columns:1fr}main{padding:12px}.tab{padding:9px 10px}}
 </style>
 </head>
@@ -93,7 +99,10 @@ input[type=range]{accent-color:var(--ac);width:140px}
 
   <section class="view on" id="v-panel">
     <div class="grid kpis" id="kpis"></div>
+    <div class="sec">¿Voy bien?</div><div class="card" id="score"></div>
     <div class="sec">Posición</div><div id="pos"></div>
+    <div class="sec">Mercado y arbitraje</div>
+    <div class="grid two"><div class="card" id="news"></div><div class="card" id="fund"></div></div>
     <div class="sec">Capital y estrategias</div>
     <div class="grid row">
       <div class="card"><svg class="chart" id="chart" viewBox="0 0 800 280" preserveAspectRatio="none"></svg></div>
@@ -141,9 +150,9 @@ const FIREBASE_CONFIG = {   // pública por diseño: la seguridad la dan el logi
 
 const $ = s => document.querySelector(s), fmt = n => (+n).toLocaleString("es", {maximumFractionDigits: 2});
 const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
-const state = {equity: [], trades: [], status: {}, strats: {trend: true, meanrev: true, grid: false, funding: false}};
+const state = {equity: [], trades: [], status: {}, funding: {}, strats: {trend: true, meanrev: true, grid: false, funding: true}};
 const LABELS = {trend: ["Seguir tendencia", "EMA + ADX, stop por ATR"], meanrev: ["Reversión a la media", "Z-score, rango"],
-                grid: ["Grid trading", "Aún no se ejecuta en vivo"], funding: ["Arbitraje de funding", "Aún no se ejecuta en vivo"]};
+                grid: ["Grid trading", "Aún no se ejecuta en vivo"], funding: ["Arbitraje de funding", "Spot largo + corto, cobra funding (paper)"]};
 let setFlag = async (k, v) => { state.strats[k] = v; render(); };
 
 /* ---------- ajustes locales (tema + sonido) ---------- */
@@ -197,7 +206,7 @@ function alerts() {
 
 /* ---------- datos y render ---------- */
 function stats() {
-  const e = state.equity.map(p => p.v); if (e.length < 3) return {last: e.at(-1) || 0};
+  const e = state.equity.map(p => p.v); if (e.length < 3) return {last: e.at(-1) || state.status.equity || 0};
   let peak = e[0], mdd = 0; const r = [];
   e.forEach((v, i) => { peak = Math.max(peak, v); mdd = Math.min(mdd, v / peak - 1); if (i) r.push(v / e[i - 1] - 1); });
   const m = r.reduce((a, b) => a + b, 0) / r.length, sd = Math.sqrt(r.reduce((a, b) => a + (b - m) ** 2, 0) / r.length) || 1;
@@ -233,7 +242,32 @@ function render() {
   const empty = n => `<tr><td colspan="${n}" style="color:var(--mut)">Sin operaciones todavía</td></tr>`;
   $("#trades").innerHTML = state.trades.slice(-12).reverse().map(t => `<tr><td>${when(t.exit_time)}</td>${row(t)}<td>${fmt(t.entry)}</td><td>${fmt(t.exit)}</td><td>${esc(t.reason)}</td><td class="${cls(t.pnl)}" style="text-align:right">${sg(t.pnl)}</td></tr>`).join("") || empty(6);
   $("#alltrades").innerHTML = state.trades.slice().reverse().map(t => `<tr><td>${when(t.entry_time)}</td><td>${when(t.exit_time)}</td>${row(t)}<td>${fmt(t.entry)}</td><td>${fmt(t.exit)}</td><td>${t.qty ? (+t.qty).toFixed(5) : ""}</td><td>${esc(t.reason)}</td><td class="${cls(t.pnl)}" style="text-align:right">${sg(t.pnl)}</td></tr>`).join("") || empty(8);
-  chart();
+  renderScore(); renderNews(); renderFund(); chart();
+}
+function renderScore() {
+  const sc = state.status.scorecard; if (!sc) { $("#score").innerHTML = `<span class="f" style="color:var(--mut)">Esperando el primer ciclo del bot…</span>`; return; }
+  $("#score").innerHTML = `<div class="verdict ${sc.state}">${esc(sc.verdict)}</div>` + sc.checks.map(c =>
+    `<div class="chk ${c.state}"><i></i><b>${esc(c.label)}</b><span class="t">${esc(c.text)}</span></div>`).join("");
+}
+function renderNews() {
+  const n = state.status.sentiment, none = `<h4 style="margin:0 0 8px;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--mut)">Noticias y sentimiento</h4>`;
+  if (!n) { $("#news").innerHTML = none + `<span style="color:var(--mut)">Sin datos todavía.</span>`; return; }
+  const col = n.pause ? "neg" : (n.ok ? "pos" : "");
+  $("#news").innerHTML = none + `<div class="mono ${col}" style="font-size:1.1rem">${n.pause ? "PAUSA POR RIESGO" : n.ok ? "Normal" : "Sin datos (no pausa)"}</div>
+    <div style="color:var(--mut);margin-top:6px;font-size:.84rem">Fear &amp; Greed: <span class="mono" style="color:var(--txt)">${n.fng ?? "—"}</span></div>` +
+    (n.reasons || []).map(r => `<div class="neg" style="font-size:.84rem;margin-top:4px">${esc(r)}</div>`).join("") +
+    (n.headlines || []).map(h => `<div style="color:var(--mut);font-size:.76rem;margin-top:4px">· ${esc(h)}</div>`).join("") +
+    `<div style="color:var(--mut);font-size:.72rem;margin-top:8px">Solo pausa al bot; nunca abre operaciones.</div>`;
+}
+function renderFund() {
+  const f = state.funding || {}, h = `<h4 style="margin:0 0 8px;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--mut)">Arbitraje de funding (paper)</h4>`;
+  if (f.enabled === false) { $("#fund").innerHTML = h + `<span style="color:var(--mut)">Apagado desde el panel.</span>`; return; }
+  if (f.error && f.equity == null) { $("#fund").innerHTML = h + `<span class="neg">Sin datos de funding.</span><div style="color:var(--mut);font-size:.76rem;margin-top:6px">${esc(f.error)}</div><div style="color:var(--mut);font-size:.76rem;margin-top:6px">Binance suele bloquear futuros por región (451): corre el bot desde un VPS en otra región.</div>`; return; }
+  if (f.equity == null) { $("#fund").innerHTML = h + `<span style="color:var(--mut)">Esperando la primera lectura de funding…</span>`; return; }
+  const c = f.total_return >= 0 ? "pos" : "neg";
+  $("#fund").innerHTML = h + `<div class="mono ${c}" style="font-size:1.1rem">${(f.total_return >= 0 ? "+" : "") + fmt(f.total_return * 100)}% · $${fmt(f.equity)}</div>
+    <div style="color:var(--mut);margin-top:6px;font-size:.84rem">Tasa actual: <span class="mono" style="color:var(--txt)">${(f.last_rate * 100).toFixed(4)}%</span> por 8 h (≈ ${fmt(f.apr * 100)}% anual)</div>
+    <div style="color:var(--mut);font-size:.84rem">${f.in_position ? "Posición abierta: cobrando funding" : "Fuera: la tasa no compensa los costos"} · ${f.entries} entradas · ${f.periods} pagos</div>`;
 }
 function chart() {
   const e = state.equity.map(p => p.v), svg = $("#chart"); if (e.length < 2) { svg.innerHTML = `<text x="400" y="140" fill="#7d8a9c" font-size="14" text-anchor="middle">La curva se dibuja con la primera vela cerrada (≈ cada hora)</text>`; return; }
@@ -296,10 +330,11 @@ async function live(cfgFb) {
   $("#gswitch").onclick = async () => { await au.signOut(auth); gate(); };
   $("#logout").onclick = () => au.signOut(auth);
   au.onAuthStateChanged(auth, user => {
-    stop(); state.equity = []; state.trades = []; state.status = {}; primed = false; seen = new Set(); hadPos = null;
+    stop(); state.equity = []; state.trades = []; state.status = {}; state.funding = {}; primed = false; seen = new Set(); hadPos = null;
     if (!user) { $("#logout").style.display = "none"; $("#demo").textContent = ""; render(); return gate(); }
     $("#gate").style.display = "none"; $("#logout").style.display = "inline-flex"; $("#demo").textContent = user.email;
     unsubs = [
+      fs.onSnapshot(fs.doc(db, "status/funding"), d => { state.funding = d.data() || {}; render(); }, deny),
       fs.onSnapshot(fs.doc(db, "status/current"), d => { state.status = d.data() || {}; render(); }, deny),
       fs.onSnapshot(fs.query(fs.collection(db, "equity"), fs.orderBy("t"), fs.limitToLast(500)), q => { state.equity = q.docs.map(x => x.data()); render(); }, deny),
       fs.onSnapshot(fs.query(fs.collection(db, "trades"), fs.orderBy("exit_time"), fs.limitToLast(100)), q => { state.trades = q.docs.map(x => x.data()); render(); }, deny),
