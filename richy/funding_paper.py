@@ -29,7 +29,26 @@ class FundingPaper:
         res = backtest_funding_arb(series, self.state["equity0"], self.enter_above, self.exit_below, cost or CostModel())
         eq = res["equity"]
         last = float(funding.iloc[-1])
-        in_pos = last >= self.exit_below if res["entries"] else False
+        in_pos = bool(res["in_position"])
         return {"equity": float(eq.iloc[-1]), "total_return": float(eq.iloc[-1] / self.state["equity0"] - 1), "entries": int(res["entries"]),
                 "in_position": bool(in_pos), "last_rate": last, "apr": last * PERIODS_PER_YEAR,
                 "periods": int(len(series)), "since": self.state["start"]}
+
+
+def analyze(funding: pd.Series, cost: CostModel = None) -> dict:
+    """Diagnóstico con datos reales: cómo es el funding y qué parámetros lo hacen rentable (o no)."""
+    cost = cost or CostModel()
+    f = funding.sort_index()
+    stats = {"payments": int(len(f)), "mean_apr": float(f.mean() * PERIODS_PER_YEAR), "pct_positive": float((f > 0).mean()),
+             "pct_above_1bp": float((f >= 0.0001).mean()), "min": float(f.min()), "max": float(f.max()),
+             "first": f.index[0].isoformat(), "last": f.index[-1].isoformat()}
+    hold = backtest_funding_arb(f, enter_above=-1, exit_below=-2, cost=cost)          # entra al inicio y nunca sale
+    rows = []
+    for smooth in (1, 9, 21):                                                          # 8 h, 3 días, 7 días
+        for enter in (0.0001, 0.00015):
+            for exit_ in (-0.00005, 0.0, 0.00005):
+                r = backtest_funding_arb(f, enter_above=enter, exit_below=exit_, cost=cost, smooth=smooth)
+                rows.append({"smooth": smooth, "enter": enter, "exit": exit_, "ret": r["metrics"]["total_return"],
+                             "entries": r["entries"], "gross": r["gross_funding"], "costs": r["costs"]})
+    return {"stats": stats, "hold": {"ret": hold["metrics"]["total_return"], "gross": hold["gross_funding"], "costs": hold["costs"],
+            "dd": hold["metrics"]["max_drawdown"]}, "sweep": rows}

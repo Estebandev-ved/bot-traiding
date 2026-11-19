@@ -267,3 +267,20 @@ def test_scorecard_judges_defensive_strategy_by_return_per_risk():
     sc = scorecard(res, closed, idx[0])
     vs = next(c for c in sc["checks"] if c["key"] == "vs_bh")
     assert vs["state"] == "ok"                      # rinde -0% con caída del 2% frente a un mercado que cayó mucho más
+
+
+def test_funding_smoothing_cuts_churn_and_reports_costs():
+    rng = np.random.default_rng(3)
+    idx = pd.date_range("2024-01-01", periods=600, freq="8h", tz="UTC")
+    noisy = pd.Series(0.0001 + rng.normal(0, 0.00012, 600), index=idx)                  # promedio positivo pero ruidoso
+    raw = backtest_funding_arb(noisy, exit_below=0.0)
+    smooth = backtest_funding_arb(noisy, exit_below=0.0, smooth=21)
+    assert smooth["entries"] < raw["entries"]
+    assert raw["costs"] > 0 and abs(raw["metrics"]["total_return"] - (raw["gross_funding"] - raw["costs"]) / 10_000) < 1e-9
+
+
+def test_funding_analyze_runs_on_a_series():
+    from richy.funding_paper import analyze
+    idx = pd.date_range("2024-01-01", periods=400, freq="8h", tz="UTC")
+    d = analyze(pd.Series(0.00012, index=idx))
+    assert len(d["sweep"]) == 18 and d["stats"]["pct_positive"] == 1.0 and d["hold"]["ret"] > 0

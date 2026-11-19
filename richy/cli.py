@@ -45,7 +45,7 @@ def show(title, m, risk=None):
 
 def main(argv=None):
     p = argparse.ArgumentParser()
-    p.add_argument("cmd", choices=["backtest", "walkforward", "grid", "funding", "live"])
+    p.add_argument("cmd", choices=["backtest", "walkforward", "grid", "funding", "funding-sweep", "live"])
     p.add_argument("--csv"); p.add_argument("--strategy", default="trend", choices=["trend", "meanrev", "regime"])
     p.add_argument("--symbol", default="BTC/USDT"); p.add_argument("--exchange", default="binance")
     p.add_argument("--timeframe", default="4h"); p.add_argument("--real", action="store_true")
@@ -67,9 +67,21 @@ def main(argv=None):
         df = load(a); c = df["close"].iloc[0]
         r = backtest_grid(df.iloc[:800], c * 0.9, c * 1.1, 12)
         show("Grid", {**r["metrics"], "ciclos": r["cycles"]})
-    elif a.cmd == "funding":
+    elif a.cmd in ("funding", "funding-sweep"):
+        from .funding_paper import analyze
         f = data.read_csv_ts(real_csv(a, funding=True))["rate"]
-        r = backtest_funding_arb(f); show(f"Arbitraje de funding ({len(f)} pagos reales)", r["metrics"])
+        r = backtest_funding_arb(f)
+        show(f"Arbitraje de funding ({len(f)} pagos reales)", {**r["metrics"], "entradas": r["entries"],
+             "funding_cobrado_usdt": round(r["gross_funding"], 2), "costos_pagados_usdt": round(r["costs"], 2)})
+        if a.cmd == "funding-sweep":
+            d = analyze(f); st, h = d["stats"], d["hold"]
+            print(f"\nFunding real {st['first'][:10]} -> {st['last'][:10]}: media anual {st['mean_apr']:+.1%} · positivo {st['pct_positive']:.0%} del tiempo · "
+                  f">=0.01% en {st['pct_above_1bp']:.0%} · min {st['min']*100:.4f}% max {st['max']*100:.4f}%")
+            print(f"Entrar al inicio y NO salir nunca: ret {h['ret']:+.2%} (cobrado {h['gross']:.0f}, costos {h['costs']:.0f}, caída {h['dd']:.2%})")
+            print("\nsuavizado  entra>=  sale<    retorno  entradas  cobrado  costos")
+            for x in sorted(d["sweep"], key=lambda x: -x["ret"]):
+                print(f"{x['smooth']:>5} pagos  {x['enter']*100:.3f}%  {x['exit']*100:+.3f}%  {x['ret']:+7.2%}  {x['entries']:>6}  {x['gross']:>7.0f}  {x['costs']:>6.0f}")
+            print("\nOJO: es un solo año y un solo activo; elegir el mejor de esta tabla sería sobreajustar.")
     else:
         live(a)
 

@@ -162,23 +162,26 @@ def backtest_grid(df: pd.DataFrame, lower: float, upper: float, levels: int = 10
 
 
 def backtest_funding_arb(funding: pd.Series, equity0: float = 10_000.0, enter_above: float = 0.0001,
-                         exit_below: float = 0.0, cost: CostModel = None, leverage_short: float = 1.0):
-    """Spot largo + futuro corto del mismo tamaño (delta neutral). Se cobra el funding
-    mientras sea positivo; entrar y salir cuesta comisión+slippage en las dos patas."""
+                         exit_below: float = 0.0, cost: CostModel = None, leverage_short: float = 1.0, smooth: int = 1):
+    """Spot largo + futuro corto del mismo tamaño (delta neutral). Se cobra el funding mientras sea
+    positivo; entrar y salir cuesta comisión+slippage en las dos patas.
+    `smooth` = pagos usados para promediar la tasa al DECIDIR (evita entrar y salir por ruido).
+    Sin mirar adelante: la decisión usa solo pagos ya liquidados y se cobra desde el pago siguiente."""
     cost = cost or CostModel()
     notional = equity0 / (1 + 1 / leverage_short)   # parte del capital va a spot, parte al margen del corto
-    in_pos, equity, trades, curve = False, equity0, 0, []
-    for ts, rate in funding.items():
-        if in_pos:                           # solo cobra si YA estaba dentro antes de este pago (sin mirar adelante)
-            equity += notional * rate        # el que está corto cobra si rate>0 (y paga si <0)
-        if not in_pos and rate >= enter_above:      # decide con la tasa ya conocida; cobra desde el siguiente pago
-            equity -= 2 * notional * (cost.fee + cost.slippage)
-            in_pos, trades = True, trades + 1
-        elif in_pos and rate < exit_below:
-            equity -= 2 * notional * (cost.fee + cost.slippage)
-            in_pos = False
+    dec = funding.rolling(smooth, min_periods=1).mean()
+    in_pos, equity, entries, curve, gross, paid = False, equity0, 0, [], 0.0, 0.0
+    leg_cost = 2 * notional * (cost.fee + cost.slippage)
+    for rate, d in zip(funding.to_numpy(), dec.to_numpy()):
+        if in_pos:
+            equity += notional * rate; gross += notional * rate     # cobra/paga solo si YA estaba dentro
+        if not in_pos and d >= enter_above:
+            equity -= leg_cost; paid += leg_cost; in_pos, entries = True, entries + 1
+        elif in_pos and d < exit_below:
+            equity -= leg_cost; paid += leg_cost; in_pos = False
         curve.append(equity)
     eq = pd.Series(curve, index=funding.index)
     if len(eq) > 1:        # punto inicial con el capital sin tocar: así el costo de entrada cuenta en retorno y drawdown
         eq = pd.concat([pd.Series([equity0], index=[eq.index[0] - (eq.index[1] - eq.index[0])]), eq])
-    return {"equity": eq, "entries": trades, "metrics": metrics(eq, [], 3 * 365)}
+    return {"equity": eq, "entries": entries, "gross_funding": gross, "costs": paid, "in_position": in_pos,
+            "metrics": metrics(eq, [], 3 * 365)}
