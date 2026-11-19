@@ -27,7 +27,7 @@ DEFAULTS = {
     # --- Dashboard ---
     'initial_balance': 1000.0,
     'refresh_seconds': 5,
-    'theme': 'Cyan',                # Cyan | Violeta | Verde | Ámbar
+    'theme': 'Azul',                # Azul | Teal | Ámbar | Grafito
     'sound_enabled': True,
     'sound_volume': 0.5,
     'sound_win': 'Campana',         # Campana | Moneda | Arpegio

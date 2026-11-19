@@ -1,5 +1,5 @@
 """
-NEXUS//TRADER — Dashboard futurista para el bot de trading.
+NEXUS Terminal — Dashboard para el bot de trading.
 Ejecutar:  streamlit run dashboard.py
 Características: auto-actualización en vivo, alertas sonoras (ganancia / pérdida /
 posición abierta), módulo de configuración que el bot relee en cada ciclo.
@@ -30,87 +30,87 @@ TRADES_FILES = [os.path.join(BASE, 'logs', 'trades_history.json'),
                 os.path.join(BASE, 'trades_history.json')]
 STATE_FILE = os.path.join(BASE, 'positions_state.json')
 
-THEMES = {  # primario, secundario
-    'Cyan': ('#00f0ff', '#7a5cff'),
-    'Violeta': ('#b46bff', '#ff4fd8'),
-    'Verde': ('#00ff9d', '#00b8ff'),
-    'Ámbar': ('#ffb300', '#ff5a36'),
+THEMES = {  # acento, acento suave
+    'Azul': ('#4c8dff', '#2a4a8a'),
+    'Teal': ('#2bb5a0', '#1b6b5f'),
+    'Ámbar': ('#e0a030', '#7a5a1c'),
+    'Grafito': ('#9aa7b8', '#4a5463'),
 }
-WIN, LOSS = '#00ff9d', '#ff3d6e'
+WIN, LOSS = '#26a69a', '#ef5350'   # verde/rojo de velas, sobrios
 
-st.set_page_config(page_title="NEXUS//TRADER", page_icon="⚡", layout="wide",
+st.set_page_config(page_title="NEXUS Terminal", page_icon=":material/candlestick_chart:", layout="wide",
                    initial_sidebar_state="collapsed")
 
 if 'cfg' not in st.session_state:
     st.session_state.cfg = load_settings()
 cfg = st.session_state.cfg
-C1, C2 = THEMES.get(cfg['theme'], THEMES['Cyan'])
+C1, C2 = THEMES.get(cfg['theme'], THEMES['Azul'])
 
 
 # ---------------------------------------------------------------- estilos
 def inject_css():
     st.markdown(f"""
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-:root {{ --c1:{C1}; --c2:{C2}; --win:{WIN}; --loss:{LOSS}; --bg:#05060f; --panel:rgba(14,18,40,.72); }}
-html, body, [class*="css"], .stApp {{ font-family:'Rajdhani',sans-serif; color:#dfe8ff; }}
-.stApp {{
-  background:
-    radial-gradient(1200px 600px at 10% -10%, color-mix(in srgb, var(--c2) 22%, transparent), transparent 60%),
-    radial-gradient(900px 500px at 100% 0%, color-mix(in srgb, var(--c1) 16%, transparent), transparent 55%),
-    linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px) 0 0/44px 44px,
-    linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px) 0 0/44px 44px,
-    var(--bg);
-}}
+:root {{ --ac:{C1}; --ac2:{C2}; --win:{WIN}; --loss:{LOSS}; --bg:#0b0e13; --panel:#11151c; --line:#1f2733; --mut:#7d8a9c; --txt:#d5dbe5; }}
+html, body, [class*="css"], .stApp {{ font-family:'Inter',sans-serif; color:var(--txt); }}
+.stApp {{ background:var(--bg); }}
 header[data-testid="stHeader"] {{ background:transparent; }}
-.block-container {{ padding-top:1.2rem; max-width:1500px; }}
+.block-container {{ padding-top:1rem; max-width:1500px; }}
+svg.i {{ width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; vertical-align:-3px; }}
 .brand {{ display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap;
-  padding:.9rem 1.3rem; border:1px solid color-mix(in srgb,var(--c1) 35%,transparent);
-  background:var(--panel); backdrop-filter:blur(10px); border-radius:14px;
-  box-shadow:0 0 30px color-mix(in srgb,var(--c1) 14%,transparent), inset 0 0 40px rgba(255,255,255,.02); }}
-.brand h1 {{ font-family:Orbitron; font-weight:900; letter-spacing:.18em; margin:0; font-size:1.7rem;
-  background:linear-gradient(90deg,var(--c1),var(--c2)); -webkit-background-clip:text; color:transparent; }}
-.brand small {{ color:#8a97c4; letter-spacing:.25em; font-size:.75rem; text-transform:uppercase; }}
-.pill {{ font-family:Orbitron; font-size:.7rem; letter-spacing:.15em; padding:.35rem .8rem; border-radius:99px;
-  border:1px solid; display:inline-flex; align-items:center; gap:.5rem; }}
-.pill.on {{ color:var(--win); border-color:var(--win); background:rgba(0,255,157,.08); }}
-.pill.off {{ color:#ffb300; border-color:#ffb300; background:rgba(255,179,0,.08); }}
-.dot {{ width:8px; height:8px; border-radius:50%; background:currentColor; box-shadow:0 0 10px currentColor; animation:pulse 1.4s infinite; }}
-@keyframes pulse {{ 50% {{ opacity:.25; transform:scale(.7); }} }}
-.kpis {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:14px; margin:16px 0; }}
-.kpi {{ position:relative; overflow:hidden; padding:16px 18px; border-radius:14px; background:var(--panel);
-  border:1px solid rgba(255,255,255,.07); backdrop-filter:blur(8px); }}
-.kpi::before {{ content:""; position:absolute; inset:0 0 auto 0; height:2px;
-  background:linear-gradient(90deg,transparent,var(--c1),transparent); opacity:.8; }}
-.kpi .l {{ font-size:.72rem; letter-spacing:.22em; color:#8a97c4; text-transform:uppercase; }}
-.kpi .v {{ font-family:Orbitron; font-size:1.65rem; font-weight:700; margin-top:6px; }}
-.kpi .s {{ font-size:.85rem; color:#8a97c4; margin-top:2px; }}
-.pos {{ color:var(--win); text-shadow:0 0 14px rgba(0,255,157,.45); }}
-.neg {{ color:var(--loss); text-shadow:0 0 14px rgba(255,61,110,.45); }}
-.neu {{ color:#fff; }}
-.sec {{ font-family:Orbitron; letter-spacing:.2em; font-size:.8rem; color:var(--c1); margin:14px 0 6px;
-  display:flex; align-items:center; gap:10px; text-transform:uppercase; }}
-.sec::after {{ content:""; flex:1; height:1px; background:linear-gradient(90deg,var(--c1),transparent); opacity:.5; }}
-.ticker {{ overflow:hidden; white-space:nowrap; border-radius:10px; border:1px solid rgba(255,255,255,.07);
-  background:rgba(0,0,0,.35); padding:6px 0; margin-top:12px; }}
-.ticker span {{ display:inline-block; padding-left:100%; animation:slide 40s linear infinite;
-  font-family:Orbitron; font-size:.75rem; letter-spacing:.12em; color:#9fb0e6; }}
-@keyframes slide {{ to {{ transform:translateX(-100%); }} }}
-.poscard {{ padding:16px 20px; border-radius:14px; background:var(--panel); border:1px solid var(--c1);
-  box-shadow:0 0 24px color-mix(in srgb,var(--c1) 22%,transparent); }}
-.poscard b {{ font-family:Orbitron; color:var(--c1); }}
-.stTabs [data-baseweb="tab-list"] {{ gap:6px; border-bottom:1px solid rgba(255,255,255,.08); }}
-.stTabs [data-baseweb="tab"] {{ font-family:Orbitron; letter-spacing:.15em; font-size:.78rem; padding:10px 18px;
-  background:transparent; border-radius:8px 8px 0 0; color:#b9c6ee; }}
-.stTabs [aria-selected="true"] {{ color:var(--c1)!important; background:color-mix(in srgb,var(--c1) 10%,transparent)!important; }}
-.stTabs [data-baseweb="tab-highlight"] {{ background:var(--c1)!important; box-shadow:0 0 12px var(--c1); }}
-div[data-testid="stForm"] {{ border:1px solid rgba(255,255,255,.08); background:var(--panel); border-radius:14px; }}
-.stButton>button, .stFormSubmitButton>button {{ font-family:Orbitron; letter-spacing:.14em; font-size:.75rem;
-  border:1px solid var(--c1); color:var(--c1); background:transparent; border-radius:10px; transition:.2s; }}
-.stButton>button:hover, .stFormSubmitButton>button:hover {{ background:var(--c1); color:#000; box-shadow:0 0 20px var(--c1); }}
-[data-testid="stDataFrame"] {{ border:1px solid rgba(255,255,255,.08); border-radius:12px; overflow:hidden; }}
-label, .stMarkdown p {{ font-weight:500; }}
+  padding:12px 18px; background:var(--panel); border:1px solid var(--line); border-radius:6px; border-left:3px solid var(--ac); }}
+.brand .logo {{ display:flex; align-items:center; gap:12px; }}
+.brand .logo svg {{ width:26px; height:26px; color:var(--ac); }}
+.brand h1 {{ margin:0; padding:0; font-size:1.05rem; font-weight:600; letter-spacing:.04em; color:#fff; }}
+.brand small {{ color:var(--mut); font-size:.74rem; letter-spacing:.06em; }}
+.chips {{ display:flex; gap:8px; flex-wrap:wrap; }}
+.chip {{ font-size:.72rem; font-weight:500; padding:5px 10px; border:1px solid var(--line); border-radius:4px; color:var(--mut); display:inline-flex; gap:7px; align-items:center; background:#0d1117; }}
+.chip .d {{ width:7px; height:7px; border-radius:50%; background:currentColor; }}
+.chip.on {{ color:var(--win); }} .chip.off {{ color:#e0a030; }}
+.kpis {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:10px; margin:14px 0; }}
+.kpi {{ padding:13px 15px; background:var(--panel); border:1px solid var(--line); border-radius:6px; }}
+.kpi .l {{ font-size:.68rem; letter-spacing:.09em; color:var(--mut); text-transform:uppercase; font-weight:500; display:flex; gap:6px; align-items:center; }}
+.kpi .v {{ font-family:'JetBrains Mono',monospace; font-size:1.45rem; font-weight:500; margin-top:7px; color:#fff; }}
+.kpi .s {{ font-size:.76rem; color:var(--mut); margin-top:3px; }}
+.pos {{ color:var(--win)!important; }} .neg {{ color:var(--loss)!important; }} .neu {{ color:#fff; }}
+.sec {{ font-size:.72rem; font-weight:600; letter-spacing:.1em; color:var(--mut); margin:18px 0 8px; text-transform:uppercase; display:flex; align-items:center; gap:8px; }}
+.sec::after {{ content:""; flex:1; height:1px; background:var(--line); }}
+.poscard {{ padding:12px 16px; background:var(--panel); border:1px solid var(--line); border-radius:6px; font-size:.88rem; display:flex; gap:18px; flex-wrap:wrap; align-items:center; }}
+.poscard.open {{ border-left:3px solid var(--ac); }}
+.poscard b {{ color:#fff; font-weight:600; }}
+.poscard .f {{ color:var(--mut); }} .poscard .f span {{ color:var(--txt); font-family:'JetBrains Mono',monospace; }}
+table.tl {{ width:100%; border-collapse:collapse; font-size:.82rem; background:var(--panel); border:1px solid var(--line); }}
+table.tl th {{ text-align:left; color:var(--mut); font-weight:500; font-size:.68rem; letter-spacing:.08em; text-transform:uppercase; padding:8px 12px; border-bottom:1px solid var(--line); }}
+table.tl td {{ padding:7px 12px; border-bottom:1px solid #161c26; font-family:'JetBrains Mono',monospace; }}
+.stTabs [data-baseweb="tab-list"] {{ gap:2px; border-bottom:1px solid var(--line); }}
+.stTabs [data-baseweb="tab"] {{ font-size:.82rem; font-weight:500; padding:9px 16px; background:transparent; color:var(--mut); }}
+.stTabs [aria-selected="true"] {{ color:#fff!important; }}
+.stTabs [data-baseweb="tab-highlight"] {{ background:var(--ac)!important; height:2px; }}
+div[data-testid="stForm"] {{ border:1px solid var(--line); background:var(--panel); border-radius:6px; }}
+.stButton>button, .stFormSubmitButton>button {{ font-size:.8rem; font-weight:500; border:1px solid var(--line); color:var(--txt);
+  background:#151b25; border-radius:4px; transition:border-color .15s, background .15s; }}
+.stButton>button:hover, .stFormSubmitButton>button:hover {{ border-color:var(--ac); color:#fff; background:#1a2230; }}
+[data-testid="stDataFrame"] {{ border:1px solid var(--line); border-radius:6px; overflow:hidden; }}
 </style>""", unsafe_allow_html=True)
+
+
+ICONS = {
+    'logo': '<path d="M6 3v3M6 15v4M12 2v4M12 16v5M18 5v3M18 16v3"/><rect x="4" y="6" width="4" height="9" rx=".5"/><rect x="10" y="6" width="4" height="10" rx=".5"/><rect x="16" y="8" width="4" height="8" rx=".5"/>',
+    'wallet': '<path d="M3 7h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7zM3 7l12-3v3M16 14h2"/>',
+    'trend': '<path d="M3 17l6-6 4 4 8-8M15 7h6v6"/>',
+    'calendar': '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+    'target': '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/>',
+    'scale': '<path d="M12 3v18M5 7h14M5 7l-3 8a3 3 0 0 0 6 0L5 7zM19 7l-3 8a3 3 0 0 0 6 0l-3-8z"/>',
+    'pulse': '<path d="M3 12h4l3-8 4 16 3-8h4"/>',
+    'open': '<path d="M5 12h14M13 6l6 6-6 6"/>',
+    'idle': '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    'refresh': '<path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/>',
+}
+
+
+def ico(name, cls='i', size=None):
+    return f'<svg class="{cls}" viewBox="0 0 24 24">{ICONS[name]}</svg>'
 
 
 # ---------------------------------------------------------------- datos
@@ -216,20 +216,20 @@ def check_alerts(trades, position):
             if abs(p) < cfg['notify_min_profit']:
                 continue
             if p >= 0:
-                sound = cfg['sound_win']; msgs.append(('🟢', f"GANANCIA +${p:,.2f}"))
+                sound = cfg['sound_win']; msgs.append((':material/trending_up:', f"Ganancia +${p:,.2f}"))
             else:
-                sound = cfg['sound_loss']; msgs.append(('🔴', f"PÉRDIDA -${abs(p):,.2f}"))
+                sound = cfg['sound_loss']; msgs.append((':material/trending_down:', f"Pérdida -${abs(p):,.2f}"))
         ss.seen_id = last_id
     if pos_key and pos_key != ss.seen_pos and cfg['sound_on_open']:
-        sound = sound or 'Apertura'; msgs.append(('⚡', 'NUEVA POSICIÓN ABIERTA'))
+        sound = sound or 'Apertura'; msgs.append((':material/bolt:', 'Nueva posición abierta'))
     ss.seen_pos = pos_key
     # límites diarios
     today = [t for t in trades if str(t.get('timestamp', ''))[:10] == datetime.now().strftime('%Y-%m-%d')]
     day = sum(t.get('profit', 0) for t in today)
     if cfg['daily_loss_limit'] > 0 and day <= -cfg['daily_loss_limit'] and not ss.get('warned_loss'):
-        ss.warned_loss = True; sound = 'Alerta'; msgs.append(('🛑', f"LÍMITE DE PÉRDIDA DIARIA ({day:,.2f})"))
+        ss.warned_loss = True; sound = 'Alerta'; msgs.append((':material/block:', f"Límite de pérdida diaria ({day:,.2f})"))
     if cfg['daily_profit_target'] > 0 and day >= cfg['daily_profit_target'] and not ss.get('warned_win'):
-        ss.warned_win = True; sound = cfg['sound_win']; msgs.append(('🎯', f"META DIARIA ALCANZADA (+{day:,.2f})"))
+        ss.warned_win = True; sound = cfg['sound_win']; msgs.append((':material/flag:', f"Meta diaria alcanzada (+{day:,.2f})"))
     return sound, msgs
 
 
@@ -238,14 +238,14 @@ def fmt_money(v, sign=True):
     return f"{'+' if sign and v > 0 else '-' if v < 0 else ''}${abs(v):,.2f}"
 
 
-def kpi(label, value, sub='', cls='neu'):
-    return f'<div class="kpi"><div class="l">{label}</div><div class="v {cls}">{value}</div><div class="s">{sub}</div></div>'
+def kpi(label, value, sub='', cls='neu', icon=None):
+    return f'<div class="kpi"><div class="l">{ico(icon) if icon else ""}{label}</div><div class="v {cls}">{value}</div><div class="s">{sub}</div></div>'
 
 
 def style_fig(fig, h=320):
     fig.update_layout(template='plotly_dark', height=h, margin=dict(l=10, r=10, t=10, b=10),
                       paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False,
-                      font=dict(family='Rajdhani', color='#9fb0e6'), hovermode='x unified')
+                      font=dict(family='Inter', color='#9fb0e6'), hovermode='x unified')
     fig.update_xaxes(gridcolor='rgba(255,255,255,.05)', zeroline=False)
     fig.update_yaxes(gridcolor='rgba(255,255,255,.05)', zeroline=False)
     return fig
@@ -254,10 +254,10 @@ def style_fig(fig, h=320):
 def header(trades_n):
     on = cfg['bot_enabled']
     st.markdown(f"""
-<div class="brand"><div><h1>NEXUS//TRADER</h1><small>Quantum Trading Terminal · {cfg['SYMBOL']} · {cfg['INTERVAL']}</small></div>
-<div style="display:flex;gap:10px;flex-wrap:wrap">
-<span class="pill {'on' if on else 'off'}"><span class="dot"></span>{'BOT ACTIVO' if on else 'BOT EN PAUSA'}</span>
-<span class="pill on" style="color:var(--c1);border-color:var(--c1);background:transparent">LIVE · {cfg['refresh_seconds']}s</span>
+<div class="brand"><div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">{ICONS['logo']}</svg><div><h1>NEXUS Terminal</h1><small>{cfg['SYMBOL']} &nbsp;·&nbsp; {cfg['INTERVAL']} &nbsp;·&nbsp; Motor algorítmico</small></div></div>
+<div class="chips">
+<span class="chip {'on' if on else 'off'}"><span class="d"></span>{'Bot activo' if on else 'Bot en pausa'}</span>
+<span class="chip">{ico('refresh')}Actualiza cada {cfg['refresh_seconds']} s</span>
 </div></div>""", unsafe_allow_html=True)
 
 
@@ -290,25 +290,26 @@ def live_panel():
 
     cls = lambda v: 'pos' if v > 0 else 'neg' if v < 0 else 'neu'
     price_html = kpi(f"{cfg['SYMBOL']} EN VIVO", f"${price:,.2f}" if price else "—",
-                     f"{chg:+.2f}% 24h" if chg is not None else "sin conexión", cls(chg or 0))
+                     f"{chg:+.2f}% 24h" if chg is not None else "sin conexión", cls(chg or 0), 'pulse')
     st.markdown('<div class="kpis">' +
-                kpi('Balance', f"${balance:,.2f}", f"inicial ${cfg['initial_balance']:,.0f}") +
-                kpi('P&L total', fmt_money(total), f"{total / cfg['initial_balance'] * 100:+.2f}% ROI", cls(total)) +
-                kpi('P&L hoy', fmt_money(day), datetime.now().strftime('%d %b %Y'), cls(day)) +
-                kpi('Win rate', f"{wr:.1f}%", f"{wins}W / {n - wins}L · {n} trades") +
-                kpi('Profit factor', '∞' if pf == float('inf') else f"{pf:.2f}", 'ganancia bruta / pérdida bruta') +
+                kpi('Balance', f"${balance:,.2f}", f"inicial ${cfg['initial_balance']:,.0f}", icon='wallet') +
+                kpi('P&L total', fmt_money(total), f"{total / cfg['initial_balance'] * 100:+.2f}% ROI", cls(total), 'trend') +
+                kpi('P&L hoy', fmt_money(day), datetime.now().strftime('%d/%m/%Y'), cls(day), 'calendar') +
+                kpi('Win rate', f"{wr:.1f}%", f"{wins}G / {n - wins}P · {n} operaciones", icon='target') +
+                kpi('Profit factor', '∞' if pf == float('inf') else f"{pf:.2f}", 'ganancia bruta / pérdida bruta', icon='scale') +
                 price_html + '</div>', unsafe_allow_html=True)
 
     if position:
         ep = position.get('entry_price', 0)
         unreal = ((price - ep) * position.get('quantity', 0)) if price else None
-        st.markdown(f"""<div class="poscard">⚡ <b>POSICIÓN ABIERTA</b> &nbsp; {position.get('quantity',0):.6f} {position.get('symbol','')}
- @ ${ep:,.2f} &nbsp;|&nbsp; SL ${position.get('stop_loss',0):,.2f} &nbsp;|&nbsp; TP ${position.get('take_profit',0):,.2f}
- {'&nbsp;|&nbsp; P&L flotante <span class="'+cls(unreal)+'">'+fmt_money(unreal)+'</span>' if unreal is not None else ''}</div>""",
-                    unsafe_allow_html=True)
+        fl = (f'<div class="f">P&L flotante <span class="{cls(unreal)}">{fmt_money(unreal)}</span></div>' if unreal is not None else '')
+        st.markdown(f"""<div class="poscard open">{ico('open')}<b>Posición abierta</b>
+<div class="f">Cantidad <span>{position.get('quantity',0):.6f} {position.get('symbol','')}</span></div>
+<div class="f">Entrada <span>${ep:,.2f}</span></div>
+<div class="f">Stop loss <span>${position.get('stop_loss',0):,.2f}</span></div>
+<div class="f">Take profit <span>${position.get('take_profit',0):,.2f}</span></div>{fl}</div>""", unsafe_allow_html=True)
     else:
-        st.markdown('<div class="poscard" style="border-color:rgba(255,255,255,.1);box-shadow:none">'
-                    '◌ Sin posición abierta — escaneando mercado…</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="poscard">{ico("idle")}<span style="color:var(--mut)">Sin posición abierta. Analizando el mercado.</span></div>', unsafe_allow_html=True)
 
     gl_, gr_ = st.columns([3, 2])
     with gl_:
@@ -317,25 +318,29 @@ def live_panel():
             eq = (df['profit'].cumsum() + cfg['initial_balance']).tolist()
             xs = df['ts'] if df['ts'].notna().all() else list(range(n))
             col = WIN if total >= 0 else LOSS
-            fig = go.Figure(go.Scatter(x=xs, y=eq, mode='lines', line=dict(color=col, width=3, shape='spline'),
+            fig = go.Figure(go.Scatter(x=xs, y=eq, mode='lines', line=dict(color=col, width=1.8),
                                        fill='tozeroy', fillcolor='rgba(0,255,157,.08)' if total >= 0 else 'rgba(255,61,110,.08)'))
             fig.add_hline(y=cfg['initial_balance'], line_dash='dot', line_color='rgba(255,255,255,.3)')
             fig.update_yaxes(range=[min(eq + [cfg['initial_balance']]) * .995, max(eq + [cfg['initial_balance']]) * 1.005])
             st.plotly_chart(style_fig(fig), use_container_width=True, key='eq')
         else:
-            st.info("Aún no hay trades. Activa **modo demo** en la pestaña CONFIG para previsualizar.")
+            st.info("Aún no hay operaciones. Activa el modo demo en Configuración para previsualizar.")
     with gr_:
-        st.markdown('<div class="sec">P&L por trade</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sec">P&L por operación</div>', unsafe_allow_html=True)
         if n:
             last = df.tail(30)
             fig = go.Figure(go.Bar(y=last['profit'], marker_color=[WIN if p > 0 else LOSS for p in last['profit']]))
             st.plotly_chart(style_fig(fig), use_container_width=True, key='pnl')
 
     if n:
-        items = '   ◆   '.join(f"#{r.get('id', i)} {'▲' if r['profit'] > 0 else '▼'} {fmt_money(r['profit'])}"
-                               for i, r in df.tail(12).iterrows())
-        st.markdown(f'<div class="ticker"><span>{items}</span></div>', unsafe_allow_html=True)
-    st.caption(f"⟳ actualizado {datetime.now().strftime('%H:%M:%S')}")
+        st.markdown('<div class="sec">Últimas operaciones</div>', unsafe_allow_html=True)
+        rows = ''.join(
+            f"<tr><td>#{r.get('id', i)}</td><td>{str(r.get('timestamp', ''))[:16].replace('T', ' ')}</td>"
+            f"<td>${r['entry_price']:,.2f}</td><td>${r['exit_price']:,.2f}</td>"
+            f"<td class='{cls(r['profit'])}'>{r['profit_pct']:+.2f}%</td><td class='{cls(r['profit'])}'>{fmt_money(r['profit'])}</td></tr>"
+            for i, r in df.tail(6).iloc[::-1].iterrows())
+        st.markdown('<table class="tl"><tr><th>ID</th><th>Fecha</th><th>Entrada</th><th>Salida</th><th>Var.</th><th>P&L</th></tr>' + rows + '</table>', unsafe_allow_html=True)
+    st.caption(f"Actualizado {datetime.now().strftime('%H:%M:%S')}")
 
 
 @st.fragment(run_every=max(cfg['refresh_seconds'] * 3, 10))
@@ -369,7 +374,7 @@ def history_tab():
                                 'profit_pct': st.column_config.NumberColumn('P&L %', format="%.2f%%"),
                                 'entry_price': st.column_config.NumberColumn('Entrada', format="$%.2f"),
                                 'exit_price': st.column_config.NumberColumn('Salida', format="$%.2f")})
-    st.download_button("⬇ EXPORTAR CSV", df.drop(columns=['ts']).to_csv(index=False), "trades.csv", "text/csv")
+    st.download_button("Exportar CSV", df.drop(columns=['ts']).to_csv(index=False), "trades.csv", "text/csv", icon=":material/download:")
 
 
 # ---------------------------------------------------------------- CONFIG
@@ -380,21 +385,21 @@ def _reset_alerts():
 
 def config_tab():
     c = dict(cfg)
-    st.markdown('<div class="sec">Centro de control</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec">Panel de control</div>', unsafe_allow_html=True)
     top = st.columns([1, 1, 1, 2])
     with top[0]:
-        if st.button("⏸ PAUSAR BOT" if c['bot_enabled'] else "▶ REANUDAR BOT", use_container_width=True):
+        if st.button("Pausar bot" if c['bot_enabled'] else "Reanudar bot", icon=":material/pause_circle:" if c['bot_enabled'] else ":material/play_circle:", use_container_width=True):
             cfg['bot_enabled'] = not cfg['bot_enabled']; save_settings(cfg); st.rerun()
     with top[1]:
         st.toggle("Modo demo (datos ficticios)", key='demo', on_change=_reset_alerts)
     with top[2]:
-        if st.button("🔊 PROBAR SONIDOS", use_container_width=True):
+        if st.button("Probar sonidos", icon=":material/volume_up:", use_container_width=True):
             st.session_state.test_sound = time.time()
     if 'test_sound' in st.session_state:
         play(cfg['sound_win'], st.session_state.test_sound)
 
     with st.form("cfg_form"):
-        t1, t2, t3, t4 = st.tabs(["⚔ ESTRATEGIA", "🛡 RIESGO", "🔔 ALERTAS & SONIDO", "🎨 INTERFAZ"])
+        t1, t2, t3, t4 = st.tabs([":material/psychology: Estrategia", ":material/shield: Riesgo", ":material/notifications_active: Alertas y sonido", ":material/palette: Interfaz"])
         with t1:
             a, b, d = st.columns(3)
             c['SYMBOL'] = a.text_input("Par", c['SYMBOL']).upper()
@@ -429,12 +434,12 @@ def config_tab():
         with t4:
             a, b, d = st.columns(3)
             themes = list(THEMES)
-            c['theme'] = a.selectbox("Tema neón", themes, index=themes.index(c['theme']) if c['theme'] in themes else 0)
+            c['theme'] = a.selectbox("Color de acento", themes, index=themes.index(c['theme']) if c['theme'] in themes else 0)
             c['refresh_seconds'] = b.select_slider("Auto-actualización (seg)", [1, 2, 3, 5, 10, 15, 30, 60], int(c['refresh_seconds']) if int(c['refresh_seconds']) in [1, 2, 3, 5, 10, 15, 30, 60] else 5)
             c['max_trades_shown'] = d.number_input("Trades en tabla", 5, 1000, int(c['max_trades_shown']), 5)
         s1, s2 = st.columns([1, 1])
-        save = s1.form_submit_button("💾 GUARDAR CONFIGURACIÓN", use_container_width=True)
-        reset = s2.form_submit_button("↺ RESTAURAR VALORES POR DEFECTO", use_container_width=True)
+        save = s1.form_submit_button("Guardar configuración", icon=":material/save:", use_container_width=True)
+        reset = s2.form_submit_button("Restaurar valores por defecto", icon=":material/restart_alt:", use_container_width=True)
     if save:
         cfg.update(c); save_settings(cfg)
         st.success("Configuración guardada. El bot la aplicará en su próximo ciclo.")
@@ -446,7 +451,7 @@ def config_tab():
 # ---------------------------------------------------------------- main
 inject_css()
 header(0)
-tab_live, tab_hist, tab_cfg = st.tabs(["◈ PANEL EN VIVO", "▤ OPERACIONES", "⚙ CONFIGURACIÓN"])
+tab_live, tab_hist, tab_cfg = st.tabs([":material/monitoring: Panel", ":material/receipt_long: Operaciones", ":material/tune: Configuración"])
 with tab_live:
     live_panel()
 with tab_hist:
