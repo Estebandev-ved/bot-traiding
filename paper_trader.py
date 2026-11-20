@@ -27,8 +27,13 @@ def cmd_train(_):
 
 
 def cmd_run(a):
-    r = paper.run_once(a.capital, a.max_positions, a.min_notional, a.risk)
+    store = None
+    if a.cloud:
+        from research.cloud import FirestoreStore
+        store = FirestoreStore()   # GOOGLE_APPLICATION_CREDENTIALS debe apuntar al JSON de la cuenta de servicio
+    r = paper.run_once(a.capital, a.max_positions, a.min_notional, a.risk, store=store)
     state = r["state"]
+    print(f"Almacén: {r['almacen']}" + (" | modelo re-entrenado" if r["reentrenado"] else ""))
     if r["nuevo"]:
         print(f"Nuevo historial de paper trading con capital {state['capital_initial']} USDT")
     print(f"[{pd.Timestamp.now(tz='UTC'):%Y-%m-%d %H:%M}Z] velas nuevas: {r['velas']} | abiertas {r['abiertas'][0]}->{r['abiertas'][1]}"
@@ -64,6 +69,9 @@ if __name__ == "__main__":
     r.add_argument("--max-positions", type=int, default=3)
     r.add_argument("--min-notional", type=float, default=5.0, help="mínimo por orden en Binance (USDT)")
     r.add_argument("--risk", type=float, default=0.02, help="riesgo por trade como fracción del equity")
+    r.add_argument("--cloud", action="store_true",
+                   help="guardar estado/modelo en Firestore y publicar al panel de Firebase (GitHub Actions)")
+    r.add_argument("--once", action="store_true", help="(compatibilidad) corre un ciclo y termina; es el comportamiento normal")
     r.set_defaults(f=cmd_run)
     sp.add_parser("status").set_defaults(f=cmd_status)
     sp.add_parser("reset").set_defaults(f=cmd_reset)

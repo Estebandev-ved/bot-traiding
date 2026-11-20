@@ -65,6 +65,10 @@ streamlit run dashboard.py
 
 ## 🔬 Validación honesta y Paper Trading (nuevo)
 
+> **📘 Guía completa (activar GitHub Actions, verificar que corre, leer el panel): [`GUIA_DE_USO.md`](GUIA_DE_USO.md).**
+> El bot *Breakout 4h* también se publica en el panel de Firebase (pestañas **Breakout 4h** y **Guía**) y corre solo
+> cada 4 h con el workflow `.github/workflows/breakout.yml`. Comprobar que está vivo: `python verificar_nube.py`.
+
 > **Estado real**: tras validar con walk-forward, comisiones y un tramo final sin tocar, **no hay evidencia aún de
 > rentabilidad sostenida** (la estrategia candidata ganó +81 % en 2022-nov 2025 pero perdió −9.5 % en el último año).
 > Lee `reports/INFORME_VALIDACION.md` antes de arriesgar dinero real o hablar con inversionistas.

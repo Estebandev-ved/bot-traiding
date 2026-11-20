@@ -26,8 +26,10 @@ BAR = pd.Timedelta(hours=4)
 
 
 # ------------------------------------------------------------------ modelo
-def train_final(cutoff: str | None = None, path: str = MODEL_PATH, kind: str = "gbm") -> dict:
-    """Entrena con todos los trades ya TERMINADOS antes de `cutoff` (por defecto, ahora)."""
+def train_final(cutoff: str | None = None, path: str | None = MODEL_PATH, kind: str = "gbm") -> dict:
+    """Entrena con todos los trades ya TERMINADOS antes de `cutoff` (por defecto, ahora).
+    Si `path` es None no guarda nada (lo guarda quien llama, p. ej. el almacén de Firestore)."""
+    import sklearn
     p = PRIMARY
     ds = build_dataset(SYMS, "4h", "breakout", p)
     cut = pd.Timestamp(cutoff, tz="UTC") if cutoff else pd.Timestamp.now(tz="UTC")
@@ -36,9 +38,10 @@ def train_final(cutoff: str | None = None, path: str = MODEL_PATH, kind: str = "
     model = make_model(kind).fit(train[FEATURE_COLUMNS], train["win"])
     bundle = {"model": model, "threshold": th, "params": asdict(p), "features": FEATURE_COLUMNS,
               "trained_at": str(pd.Timestamp.now(tz="UTC")), "cutoff": str(cut), "n_train": int(len(train)),
-              "base_win_rate": float(train["win"].mean())}
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    joblib.dump(bundle, path)
+              "base_win_rate": float(train["win"].mean()), "sklearn_version": sklearn.__version__}
+    if path:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        joblib.dump(bundle, path)
     return bundle
 
 
@@ -171,22 +174,49 @@ def summary(state: dict) -> dict:
     return out
 
 
+MODEL_MAX_AGE_DAYS = 7   # el modelo se re-entrena con datos nuevos cada semana (como el walk-forward del informe)
+
+
+def default_store():
+    from .cloud import FileStore
+    return FileStore(STATE_PATH, MODEL_PATH)
+
+
+def ensure_bundle(store, max_age_days: int = MODEL_MAX_AGE_DAYS) -> tuple[dict, bool]:
+    """Carga el modelo del almacén; si falta, es de otra versión de sklearn o tiene más de `max_age_days`, lo re-entrena."""
+    import sklearn
+    try:
+        b = store.load_model()
+    except Exception:   # modelo ilegible (otra versión de librerías, archivo corrupto...)
+        b = None
+    if b is not None:
+        age = pd.Timestamp.now(tz="UTC") - pd.Timestamp(b["trained_at"])
+        if age <= pd.Timedelta(days=max_age_days) and b.get("sklearn_version", sklearn.__version__) == sklearn.__version__:
+            return b, False
+    b = train_final(path=None)
+    store.save_model(b)
+    return b, True
+
+
 def run_once(capital: float = 25.0, max_positions: int = 3, min_notional: float = 5.0,
-             risk_per_trade: float = 0.02) -> dict:
-    """Un ciclo completo: datos en vivo -> procesar velas 4h nuevas -> guardar estado. Lo usan la CLI y el dashboard."""
+             risk_per_trade: float = 0.02, store=None) -> dict:
+    """Un ciclo completo: modelo -> datos en vivo -> procesar velas 4h nuevas -> guardar y publicar.
+    Lo usan la CLI, el dashboard de Streamlit y GitHub Actions (con store=FirestoreStore)."""
     from .live import fetch_live_4h
-    if not os.path.exists(MODEL_PATH):
-        train_final()
-    bundle = load_bundle()
-    state = load_state(capital=capital)
+    store = store or default_store()
+    bundle, retrained = ensure_bundle(store)
+    state = store.load_state() or new_state(capital)
     frames, last_closed = fetch_live_4h(SYMS)
     feats = make_features(frames)
     nuevo = state["last_ts"] is None
     if nuevo:
         state["last_ts"] = str(last_closed - BAR)   # el historial empieza AHORA
+        state["started"] = str(pd.Timestamp.now(tz="UTC"))
     n_open, n_closed = len(state["positions"]), len(state["closed"])
     n = advance(state, feats, bundle, last_closed, max_positions=max_positions,
                 min_notional=min_notional, risk_per_trade=risk_per_trade)
-    save_state(state)
+    store.save_state(state)
+    store.publish(state, bundle)
     return {"nuevo": nuevo, "velas": n, "abiertas": (n_open, len(state["positions"])),
-            "cerradas": (n_closed, len(state["closed"])), "equity": state["equity"], "state": state}
+            "cerradas": (n_closed, len(state["closed"])), "equity": state["equity"], "state": state,
+            "reentrenado": retrained, "almacen": store.name}

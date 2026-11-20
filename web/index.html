@@ -67,6 +67,11 @@ input[type=range]{accent-color:var(--ac);width:140px}
 .verdict{padding:10px 14px;border-radius:4px;margin-bottom:8px;font-size:.88rem;border:1px solid var(--line);border-left:3px solid #566274;background:#0d1117}
 .verdict.ok{border-left-color:var(--win)}.verdict.bad{border-left-color:var(--loss)}
 .two{grid-template-columns:1fr 1fr}@media(max-width:900px){.two{grid-template-columns:1fr}.chk b{min-width:130px}}
+.bar{height:8px;background:#161c26;border-radius:99px;overflow:hidden;margin:8px 0}.bar>i{display:block;height:100%;background:var(--ac);border-radius:99px}
+.hb{display:inline-flex;gap:8px;align-items:center;font-size:.78rem;color:var(--mut);margin-top:12px}.hb i{width:8px;height:8px;border-radius:50%;background:#566274;flex:none}.hb.ok{color:var(--txt)}.hb.ok i{background:var(--win)}.hb.bad{color:#f3b0ae}.hb.bad i{background:var(--loss)}
+.calc{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}.calc label{display:flex;flex-direction:column;gap:5px;font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--mut)}.calc input{width:100%;font-size:.95rem}
+.out{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-top:14px}.out div{background:#0d1117;border:1px solid var(--line);border-radius:4px;padding:10px 12px}.out small{display:block;color:var(--mut);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase}.out b{font:500 1.15rem 'JetBrains Mono',monospace;color:#fff}
+.guide{max-width:900px}.guide h3{margin:22px 0 6px;font-size:.95rem;color:#fff;font-weight:600}.guide p,.guide li{font-size:.88rem;color:var(--txt);margin:6px 0}.guide ul,.guide ol{padding-left:20px;margin:6px 0}.guide code{background:#0d1117;border:1px solid var(--line);border-radius:3px;padding:1px 6px;font:.8rem 'JetBrains Mono',monospace}.guide .note{border-left:3px solid var(--ac);background:#0d1117;padding:9px 14px;border-radius:4px;color:var(--mut);font-size:.84rem;margin:10px 0}.guide .warn{border-left-color:var(--loss)}.guide table.tl{min-width:0}
 @media(max-width:900px){.row{grid-template-columns:1fr}main{padding:12px}.tab{padding:9px 10px}}
 </style>
 </head>
@@ -94,7 +99,9 @@ input[type=range]{accent-color:var(--ac);width:140px}
   <div class="tabs" id="tabs">
     <button class="tab on" data-v="panel"><svg class="i" viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>Panel</button>
     <button class="tab" data-v="ops"><svg class="i" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>Operaciones</button>
+    <button class="tab" data-v="bo"><svg class="i" viewBox="0 0 24 24"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3"/></svg>Breakout 4h</button>
     <button class="tab" data-v="cfg"><svg class="i" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>Ajustes</button>
+    <button class="tab" data-v="guide"><svg class="i" viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2V5zM4 19a2 2 0 0 1 2-2h13"/></svg>Guía</button>
   </div>
 
   <section class="view on" id="v-panel">
@@ -110,6 +117,29 @@ input[type=range]{accent-color:var(--ac);width:140px}
     </div>
     <div class="sec">Últimas operaciones</div>
     <div class="tw"><table class="tl"><thead><tr><th>Cierre</th><th>Lado</th><th>Entrada</th><th>Salida</th><th>Motivo</th><th style="text-align:right">P&amp;L</th></tr></thead><tbody id="trades"></tbody></table></div>
+  </section>
+
+  <section class="view" id="v-bo">
+    <div class="sec">Estrategia «Breakout 4h» · paper trading (sin dinero, precios reales)</div>
+    <div class="card" id="bo-val"></div>
+    <div id="bo-hb"></div>
+    <div class="grid kpis" id="bo-kpis"></div>
+    <div class="card" id="bo-prog"></div>
+    <div class="sec">Posiciones abiertas (simuladas)</div><div id="bo-pos"></div>
+    <div class="sec">Equity simulado</div>
+    <div class="card"><svg class="chart" id="bo-chart" viewBox="0 0 800 280" preserveAspectRatio="none"></svg></div>
+    <div class="sec">Trades cerrados</div>
+    <div class="tw"><table class="tl"><thead><tr><th>Cierre</th><th>Par</th><th>Entrada</th><th>Salida</th><th>Motivo</th><th style="text-align:right">Var. neta</th><th style="text-align:right">P&amp;L $</th></tr></thead><tbody id="bo-trades"></tbody></table></div>
+    <div class="sec">Calculadora: ¿cuánto capital necesito para mi meta diaria?</div>
+    <div class="card">
+      <div class="calc">
+        <label>Capital actual (USDT)<input type="number" id="bo-cap" min="1" step="5" value="25"></label>
+        <label>Meta diaria (USDT)<input type="number" id="bo-goal" min="0.1" step="0.5" value="1"></label>
+        <label>Rendimiento anual supuesto (%)<input type="number" id="bo-ann" min="0.5" max="100" step="0.5" value="16.5"></label>
+      </div>
+      <div class="out" id="bo-out"></div>
+      <p style="color:var(--mut);font-size:.76rem;margin:12px 0 0">16.5 % anual fue el resultado del periodo de diseño (2022 → nov 2025). El último año dio −9.5 %: el rendimiento futuro es incierto y puede ser menor o negativo. Es un supuesto, no una promesa.</p>
+    </div>
   </section>
 
   <section class="view" id="v-ops">
@@ -133,6 +163,50 @@ input[type=range]{accent-color:var(--ac);width:140px}
     </div>
     <p style="color:var(--mut);font-size:.8rem;margin-top:14px">Estos ajustes se guardan solo en este navegador. Para el riesgo y las estrategias del bot usa los interruptores del Panel y la configuración del servidor.</p>
   </section>
+
+  <section class="view" id="v-guide"><div class="guide">
+    <h3>¿Qué es este panel?</h3>
+    <p>Tiene dos bots que operan <b>en simulación</b> (paper trading: precios reales, sin dinero real):</p>
+    <ul>
+      <li><b>Panel / Operaciones</b> → bot <b>Richy</b> (BTC/USDT, tendencia con stop por ATR, capital simulado de 10,000 USDT).</li>
+      <li><b>Breakout 4h</b> → bot de <b>ruptura de máximos</b> en 5 pares (BTC, ETH, BNB, SOL, XRP) con filtro de aprendizaje automático. Capital simulado de 25 USDT, como tu cuenta real.</li>
+    </ul>
+    <div class="note warn"><b>Importante:</b> ninguno de los dos tiene todavía una rentabilidad confirmada. Breakout 4h ganó en 2022 → nov 2025 pero perdió en el último año. No uses dinero real hasta reunir al menos ~100 trades en vivo con resultado positivo.</div>
+
+    <h3>¿Está corriendo el bot? (3 comprobaciones)</h3>
+    <ol>
+      <li><b>En este panel</b> (pestaña Breakout 4h): debe verse un punto verde con «Último ciclo hace X». Si sale en rojo (más de 9 h), el bot está detenido: debería correr cada 4 h.</li>
+      <li><b>En GitHub</b> → tu repositorio → pestaña <b>Actions</b>: debe aparecer el workflow <code>breakout-bot</code> con una marca verde cada 4 h. Si Actions está vacío («0 workflows»), el archivo del workflow aún no está en la rama <code>main</code> y GitHub no ejecuta nada.</li>
+      <li><b>En tu PC</b>: <code>python verificar_nube.py</code> (con la clave de servicio) imprime hace cuánto escribió cada bot en Firestore.</li>
+    </ol>
+
+    <h3>Cómo leer la pestaña Breakout 4h</h3>
+    <ul>
+      <li><b>Validación</b>: cómo le fue a la estrategia en el pasado, <i>fuera de muestra</i> y con comisiones. «Último año» es el tramo que no se usó para diseñarla.</li>
+      <li><b>Equity simulado</b>: el capital de práctica. Parte de 25 USDT.</li>
+      <li><b>Progreso a 100 trades</b>: con menos de ~100 operaciones es imposible distinguir habilidad de suerte. La estrategia hace unos 3–7 trades al mes: tomará de 1 a 2 años.</li>
+      <li><b>Profit factor</b>: ganancia bruta ÷ pérdida bruta. Menor que 1 = pierde dinero; un valor sano está por encima de 1.3.</li>
+      <li><b>Caída máx.</b>: la peor caída desde un máximo. Pregúntate si podrías aguantar esa caída con dinero real.</li>
+      <li><b>Motivo</b>: <code>SL</code> (stop loss), <code>TP</code> (objetivo), <code>TIME</code> (cierre por tiempo, 24 velas de 4 h), <code>SL_GAP</code> (el precio saltó el stop).</li>
+    </ul>
+
+    <h3>Rutina recomendada</h3>
+    <ul>
+      <li><b>Cada semana</b>: abre el panel, comprueba el punto verde y mira cuántos trades van. No hace falta más.</li>
+      <li><b>No cambies parámetros</b> a mitad de camino: el valor del historial es que nadie lo ajustó mirando los resultados. El modelo se re-entrena solo cada 7 días con datos nuevos; eso es parte del diseño.</li>
+      <li><b>No metas dinero real</b> por una racha corta buena o mala. Decide con 100+ trades.</li>
+    </ul>
+
+    <h3>Glosario</h3>
+    <ul>
+      <li><b>Paper trading</b>: simular operaciones con precios reales sin arriesgar dinero.</li>
+      <li><b>Fuera de muestra</b>: datos que el modelo no vio al entrenarse; es la única prueba que cuenta.</li>
+      <li><b>Breakout</b>: el precio rompe su máximo de las últimas 48 velas (8 días) con tendencia alcista.</li>
+      <li><b>ATR</b>: medida de cuánto se mueve el precio; define la distancia del stop (2×) y del objetivo (4×).</li>
+      <li><b>Sharpe</b>: ganancia ajustada por riesgo; por encima de 1 es buena.</li>
+    </ul>
+    <p style="color:var(--mut);font-size:.8rem">Guía completa de instalación y mantenimiento: archivo <code>GUIA_DE_USO.md</code> del repositorio.</p>
+  </div></section>
 </main>
 
 <script type="module">
@@ -150,7 +224,8 @@ const FIREBASE_CONFIG = {   // pública por diseño: la seguridad la dan el logi
 
 const $ = s => document.querySelector(s), fmt = n => (+n).toLocaleString("es", {maximumFractionDigits: 2});
 const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
-const state = {equity: [], trades: [], status: {}, funding: {}, strats: {trend: true, meanrev: true, grid: false, funding: false}};
+const state = {equity: [], trades: [], status: {}, funding: {}, strats: {trend: true, meanrev: true, grid: false, funding: false},
+  bo: {status: {}, validation: null, equity: [], trades: []}};
 const LABELS = {trend: ["Seguir tendencia", "EMA + ADX, stop por ATR"], meanrev: ["Reversión a la media", "Z-score, rango"],
                 grid: ["Grid trading", "Aún no se ejecuta en vivo"], funding: ["Arbitraje de funding", "Simulación; hoy rinde poco (ver Mercado)"]};
 let setFlag = async (k, v) => { state.strats[k] = v; render(); };
@@ -242,8 +317,46 @@ function render() {
   const empty = n => `<tr><td colspan="${n}" style="color:var(--mut)">Sin operaciones todavía</td></tr>`;
   $("#trades").innerHTML = state.trades.slice(-12).reverse().map(t => `<tr><td>${when(t.exit_time)}</td>${row(t)}<td>${fmt(t.entry)}</td><td>${fmt(t.exit)}</td><td>${esc(t.reason)}</td><td class="${cls(t.pnl)}" style="text-align:right">${sg(t.pnl)}</td></tr>`).join("") || empty(6);
   $("#alltrades").innerHTML = state.trades.slice().reverse().map(t => `<tr><td>${when(t.entry_time)}</td><td>${when(t.exit_time)}</td>${row(t)}<td>${fmt(t.entry)}</td><td>${fmt(t.exit)}</td><td>${t.qty ? (+t.qty).toFixed(5) : ""}</td><td>${esc(t.reason)}</td><td class="${cls(t.pnl)}" style="text-align:right">${sg(t.pnl)}</td></tr>`).join("") || empty(8);
-  renderScore(); renderNews(); renderFund(); chart();
+  renderScore(); renderNews(); renderFund(); renderBO(); chart();
 }
+
+/* ---------- pestaña Breakout 4h ---------- */
+function renderBO() {
+  const b = state.bo, st = b.status || {}, v = b.validation, cls = x => x >= 0 ? "pos" : "neg", sg = x => (x >= 0 ? "+" : "") + fmt(x),
+        pc = x => x == null ? "—" : sg(x * 100) + "%", n = st.n_closed || 0, T = st.target_trades || 100;
+  const seg = (name, s) => s ? `<div class="chk"><b>${name}</b><span class="t"><span class="${cls(s.ret)}">${pc(s.ret)}</span> · Sharpe ${fmt(s.sharpe)} · caída máx. ${pc(s.dd)} · ${s.n} trades · comprar y mantener ${pc(s.bh)}</span></div>` : "";
+  $("#bo-val").innerHTML = v && (v.design || v.holdout)
+    ? `<div class="verdict ${v.holdout && v.holdout.ret < 0 ? "bad" : ""}"><b>${v.holdout && v.holdout.ret < 0 ? "Validación NO confirmada." : "Validación positiva, pero falta historial en vivo."}</b> ${v.holdout && v.holdout.ret < 0 ? "Ganó en el periodo de diseño y perdió en el último año." : ""} Úsalo solo en paper trading (sin dinero) hasta reunir ~${T} trades en vivo.</div>` + seg("Diseño 2022 → nov 2025 (fuera de muestra)", v.design) + seg("Último año (tramo sin tocar)", v.holdout)
+    : `<span style="color:var(--mut)">Aún no hay resultados de validación publicados (el bot los sube en cada ciclo).</span>`;
+  const age = st.updated ? (Date.now() / 1000 - st.updated) / 3600 : null;
+  const hb = age == null ? ["", "El bot aún no ha publicado nada. Mira la pestaña Guía → «¿Está corriendo el bot?»"]
+    : age > 9 ? ["bad", `Último ciclo hace ${fmt(age)} h: el bot parece detenido (debería correr cada 4 h). Revisa GitHub Actions.`]
+    : ["ok", `Último ciclo hace ${age < 1 ? Math.max(1, Math.round(age * 60)) + " min" : fmt(age) + " h"} · última vela procesada: ${when(st.last_bar)} UTC`];
+  $("#bo-hb").innerHTML = `<span class="hb ${hb[0]}"><i></i>${esc(hb[1])}</span>`;
+  const K = [["wallet", "Equity simulado", "$" + fmt(st.equity ?? 0), `inicial $${fmt(st.capital_initial ?? 25)}`, ""],
+    ["trend", "Retorno", pc(st.ret ?? 0), "acumulado", cls(st.ret ?? 0)],
+    ["target", "Trades cerrados", String(n), `meta de validación: ${T}`, ""],
+    ["pulse", "Win rate", st.win_rate == null ? "—" : fmt(st.win_rate * 100) + "%", "sobre trades cerrados", ""],
+    ["scale", "Profit factor", st.profit_factor == null ? "—" : fmt(st.profit_factor), "ganancia bruta / pérdida bruta", ""],
+    ["pulse", "Caída máx.", n ? pc(st.max_dd) : "—", "sobre trades cerrados", n ? "neg" : ""]];
+  $("#bo-kpis").innerHTML = K.map(([i, l, val, sub, c]) => `<div class="card k"><div class="l">${ico(i)}${l}</div><div class="v mono ${c}">${val}</div><div class="s">${sub}</div></div>`).join("");
+  $("#bo-prog").innerHTML = `<div style="display:flex;justify-content:space-between;font-size:.84rem"><span>Progreso hacia ${T} trades en vivo</span><span class="mono">${n}/${T}</span></div><div class="bar"><i style="width:${Math.min(100, n / T * 100)}%"></i></div><div style="color:var(--mut);font-size:.76rem">Con menos trades no se distingue suerte de habilidad. Ritmo esperado: 3–7 trades al mes.</div>`;
+  const P = st.positions || [];
+  $("#bo-pos").innerHTML = P.length ? P.map(p => `<div class="poscard open" style="margin-bottom:8px"><b><span class="tag l">LONG</span> ${esc(p.symbol)}</b>
+    <span class="f">Entrada <span>${fmt(p.entry)}</span></span><span class="f">Stop <span>${fmt(p.stop)}</span></span><span class="f">Objetivo <span>${fmt(p.target)}</span></span>
+    <span class="f">Tamaño <span>$${fmt(p.size)}</span></span><span class="f">Prob. ML <span>${fmt(p.p * 100)}%</span></span><span class="f">Desde <span>${when(p.since)}</span></span></div>`).join("")
+    : `<div class="poscard"><span class="f">Sin posiciones abiertas. Espera una ruptura de máximos confirmada por el modelo.</span></div>`;
+  $("#bo-trades").innerHTML = b.trades.slice(-30).reverse().map(t => `<tr><td>${when(t.exit_time)}</td><td>${esc(t.symbol)}</td><td>${fmt(t.entry)}</td><td>${fmt(t.exit)}</td><td>${esc(t.reason)}</td><td class="${cls(t.net_ret)}" style="text-align:right">${pc(t.net_ret)}</td><td class="${cls(t.pnl)}" style="text-align:right">${sg(t.pnl)}</td></tr>`).join("")
+    || `<tr><td colspan="7" style="color:var(--mut)">Sin trades cerrados todavía</td></tr>`;
+  calc();
+}
+function calc() {
+  const cap = +$("#bo-cap").value || 0, goal = +$("#bo-goal").value || 0, ann = (+$("#bo-ann").value || 0) / 100, day = cap * ann / 365;
+  $("#bo-out").innerHTML = `<div><small>Ganancia diaria con tu capital</small><b>$${day.toFixed(3)}</b></div>
+    <div><small>Capital para ganar $${fmt(goal)}/día</small><b>${ann > 0 ? "$" + fmt(goal * 365 / ann) : "—"}</b></div>
+    <div><small>Días para ganar $1 con tu capital</small><b>${day > 0 ? fmt(1 / day) : "—"}</b></div>`;
+}
+["#bo-cap", "#bo-goal", "#bo-ann"].forEach(id => $(id).oninput = calc);
 function renderScore() {
   const sc = state.status.scorecard; if (!sc) { $("#score").innerHTML = `<span class="f" style="color:var(--mut)">Esperando el primer ciclo del bot…</span>`; return; }
   $("#score").innerHTML = `<div class="verdict ${sc.state}">${esc(sc.verdict)}</div>` + sc.checks.map(c =>
@@ -272,14 +385,18 @@ function renderFund() {
     <div style="color:var(--mut);font-size:.72rem;margin-top:6px">Umbral orientativo: 5% anual. Apagado por defecto; solo monitorea.</div>` + sim;
 }
 function chart() {
-  const e = state.equity.map(p => p.v), svg = $("#chart"); if (e.length < 2) { svg.innerHTML = `<text x="400" y="140" fill="#7d8a9c" font-size="14" text-anchor="middle">La curva se dibuja con la primera vela cerrada (≈ cada hora)</text>`; return; }
+  drawChart($("#chart"), state.equity.map(p => p.v), "La curva se dibuja con la primera vela cerrada (≈ cada hora)", "g");
+  drawChart($("#bo-chart"), state.bo.equity.map(p => p.v), "La curva aparece con el primer trade cerrado (≈ 3–7 al mes)", "g2");
+}
+function drawChart(svg, e, msg, gid) {
+  if (e.length < 2) { svg.innerHTML = `<text x="400" y="140" fill="#7d8a9c" font-size="14" text-anchor="middle">${msg}</text>`; return; }
   const lo = Math.min(...e), hi = Math.max(...e), W = 800, H = 280, X = i => i / (e.length - 1) * W, Y = v => H - 16 - (v - lo) / (hi - lo || 1) * (H - 40);
   const d = e.map((v, i) => `${i ? "L" : "M"}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(""), c = e.at(-1) >= e[0] ? "#26a69a" : "#ef5350";
   let peak = -1e18; const dd = e.map((v, i) => (peak = Math.max(peak, v), `${i ? "L" : "M"}${X(i).toFixed(1)},${Y(peak).toFixed(1)}`)).join("");
-  svg.innerHTML = `<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c}" stop-opacity=".25"/><stop offset="1" stop-color="${c}" stop-opacity="0"/></linearGradient></defs>
+  svg.innerHTML = `<defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c}" stop-opacity=".25"/><stop offset="1" stop-color="${c}" stop-opacity="0"/></linearGradient></defs>
   ${[0, 1, 2, 3].map(i => `<line x1="0" x2="${W}" y1="${20 + i * 75}" y2="${20 + i * 75}" stroke="#1f2733" stroke-dasharray="3 5"/>`).join("")}
   <path d="${dd}" fill="none" stroke="var(--ac)" stroke-opacity=".5" stroke-width="1" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>
-  <path d="${d}L${W},${H}L0,${H}Z" fill="url(#g)"/><path d="${d}" fill="none" stroke="${c}" stroke-width="1.8" vector-effect="non-scaling-stroke"/>`;
+  <path d="${d}L${W},${H}L0,${H}Z" fill="url(#${gid})"/><path d="${d}" fill="none" stroke="${c}" stroke-width="1.8" vector-effect="non-scaling-stroke"/>`;
 }
 
 /* ---------- navegación y ajustes ---------- */
@@ -303,6 +420,14 @@ function demo() {
   for (let i = 0; i < 14; i++) { const side = rnd() > .4 ? 1 : -1, en = 60000 + rnd() * 3000, pnl = (rnd() - .4) * 220, ex = new Date(Date.now() - (14 - i) * 18e6);
     state.trades.push({entry_time: new Date(+ex - 9e6).toISOString(), exit_time: ex.toISOString(), side, entry: en, exit: en + pnl * 4, qty: 0.04, pnl, reason: ["signal", "stop", "signal"][i % 3]}); }
   state.status = {mode: "paper", symbol: "BTC/USDT", position: {side: 1, qty: 0.077, entry: 62715.8, stop: 61943.9, since: new Date(Date.now() - 4e6).toISOString()}};
+  state.bo.validation = {design: {ret: .809, sharpe: 1.27, dd: -.084, n: 149, win: .51, pf: 1.75, bh: .985}, holdout: {ret: -.095, sharpe: -.64, dd: -.205, n: 75, win: .36, pf: .8, bh: -.417}};
+  let w = 25, t0 = Date.now() - 30 * 864e5; const sy = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"], rs = ["SL", "TP", "TP", "SL", "TIME"];
+  state.bo.equity.push({t: Math.floor(t0 / 1000), v: w});
+  for (let i = 0; i < 9; i++) { const r = (rnd() - .42) * .06, pnl = w * .3 * r, ex = new Date(t0 + (i + 1) * 3 * 864e5); w += pnl;
+    state.bo.equity.push({t: Math.floor(+ex / 1000), v: w});
+    state.bo.trades.push({symbol: sy[i % 5], entry_time: new Date(+ex - 8e7).toISOString(), exit_time: ex.toISOString(), entry: 100 + i, exit: 100 + i + r * 100, reason: rs[i % 5], net_ret: r, pnl, size: w * .3}); }
+  state.bo.status = {equity: w, capital_initial: 25, ret: w / 25 - 1, n_closed: 9, n_open: 1, target_trades: 100, win_rate: .44, profit_factor: 1.12, max_dd: -.062,
+    last_bar: new Date().toISOString(), updated: Date.now() / 1000 - 900, positions: [{symbol: "SOLUSDT", entry: 142.3, stop: 135.1, target: 156.7, size: 8.2, p: .61, since: new Date(Date.now() - 6e6).toISOString()}]};
   $("#demo").textContent = "MODO DEMO · datos de ejemplo"; render();
 }
 const gate = (msg = "", denied = false) => { $("#gate").style.display = "grid"; $("#gmsg").textContent = msg; $("#gswitch").style.display = denied ? "inline" : "none"; $("#gbtn").disabled = false; };
@@ -332,7 +457,7 @@ async function live(cfgFb) {
   $("#gswitch").onclick = async () => { await au.signOut(auth); gate(); };
   $("#logout").onclick = () => au.signOut(auth);
   au.onAuthStateChanged(auth, user => {
-    stop(); state.equity = []; state.trades = []; state.status = {}; state.funding = {}; primed = false; seen = new Set(); hadPos = null;
+    stop(); state.equity = []; state.trades = []; state.status = {}; state.funding = {}; state.bo = {status: {}, validation: null, equity: [], trades: []}; primed = false; seen = new Set(); hadPos = null;
     if (!user) { $("#logout").style.display = "none"; $("#demo").textContent = ""; render(); return gate(); }
     $("#gate").style.display = "none"; $("#logout").style.display = "inline-flex"; $("#demo").textContent = user.email;
     unsubs = [
@@ -340,6 +465,10 @@ async function live(cfgFb) {
       fs.onSnapshot(fs.doc(db, "status/current"), d => { state.status = d.data() || {}; render(); }, deny),
       fs.onSnapshot(fs.query(fs.collection(db, "equity"), fs.orderBy("t"), fs.limitToLast(500)), q => { state.equity = q.docs.map(x => x.data()); render(); }, deny),
       fs.onSnapshot(fs.query(fs.collection(db, "trades"), fs.orderBy("exit_time"), fs.limitToLast(100)), q => { state.trades = q.docs.map(x => x.data()); render(); }, deny),
+      fs.onSnapshot(fs.doc(db, "breakout_status/current"), d => { state.bo.status = d.data() || {}; render(); }, deny),
+      fs.onSnapshot(fs.doc(db, "breakout_status/validation"), d => { state.bo.validation = d.data() || null; render(); }, deny),
+      fs.onSnapshot(fs.query(fs.collection(db, "breakout_equity"), fs.orderBy("t"), fs.limitToLast(500)), q => { state.bo.equity = q.docs.map(x => x.data()); render(); }, deny),
+      fs.onSnapshot(fs.query(fs.collection(db, "breakout_trades"), fs.orderBy("exit_time"), fs.limitToLast(100)), q => { state.bo.trades = q.docs.map(x => x.data()); render(); }, deny),
       fs.onSnapshot(fs.collection(db, "strategies"), q => { q.docs.forEach(x => state.strats[x.id] = !!x.data().enabled); render(); }, deny),
     ];
   });
