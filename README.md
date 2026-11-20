@@ -66,6 +66,8 @@ streamlit run dashboard.py
 ## 🔬 Validación honesta y Paper Trading (nuevo)
 
 > **📘 Guía completa (activar GitHub Actions, verificar que corre, leer el panel): [`GUIA_DE_USO.md`](GUIA_DE_USO.md).**
+> Incluye el **panel renovado** (Resumen, gráficos interactivos, Noticias, Operaciones con CSV, modo claro/oscuro),
+> **alertas por Telegram** (`alerts/`, `telegram_probar.py`) y el **bot de noticias** (`news_bot.py`, workflow `news-bot`).
 > El bot *Breakout 4h* también se publica en el panel de Firebase (pestañas **Breakout 4h** y **Guía**) y corre solo
 > cada 4 h con el workflow `.github/workflows/breakout.yml`. Comprobar que está vivo: `python verificar_nube.py`.
 
