@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Solo tu cuenta de Google puede leer el panel y prender/apagar estrategias.
+    // Cambia el correo. El bot escribe con el Admin SDK, que ignora estas reglas.
+    function admin() { return request.auth != null && request.auth.token.email == 'TU_CORREO@gmail.com'; }
+    match /strategies/{id} { allow read, write: if admin(); }
+    match /{col}/{doc=**} { allow read: if admin(); allow write: if false; }
+  }
+}

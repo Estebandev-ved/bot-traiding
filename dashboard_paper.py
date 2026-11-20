@@ -13,7 +13,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-STATE_FILE = os.path.join(BASE, "paper_state.json")
+STATE_FILE = os.path.join(BASE, "breakout_state.json")
 REPORTS = os.path.join(BASE, "reports")
 PRIMARY = "PRIMARIA  SL2/TP4/H24"
 TARGET_TRADES = 100   # trades mínimos para distinguir habilidad de suerte
@@ -70,7 +70,7 @@ def _live(kpi, fmt_money, style_fig, win, loss):
             except Exception as e:  # red, modelo ausente, etc.
                 st.error(f"No se pudo actualizar: {e}")
     with c2:
-        st.caption("Se actualiza solo cada 30 s leyendo `paper_state.json`. Las velas nuevas se procesan al ejecutar "
+        st.caption("Se actualiza solo cada 30 s leyendo `breakout_state.json`. Las velas nuevas se procesan al ejecutar "
                    "`python paper_trader.py run` (o programándolo) o con el botón.")
 
     if not state:

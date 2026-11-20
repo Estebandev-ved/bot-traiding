@@ -7,7 +7,7 @@ Paper trader (SIN dinero) de la estrategia validada: ruptura 4h + filtro ML, pre
   python paper_trader.py status    # resumen del historial en vivo
   python paper_trader.py reset     # borra el estado (empezar un nuevo historial)
 
-Programar (cron):  2 */4 * * *  cd /ruta/bot-traiding && python3 paper_trader.py run >> paper.log 2>&1
+Programar (cron):  2 */4 * * *  cd /ruta/bot-traiding && python3 paper_trader.py run >> breakout.log 2>&1
 No necesita API keys: solo lee datos públicos de mercado.
 """
 import argparse

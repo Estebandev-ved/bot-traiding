@@ -1,0 +1,43 @@
+name: richy-bot
+
+# Corre UN ciclo del bot en paper trading cada 4 horas (7 min después del cierre de cada vela de 4h).
+# El estado vive en Firestore, así que no importa que el disco de Actions se borre entre corridas.
+# OJO: GitHub solo ejecuta los horarios (cron) desde la rama por defecto del repositorio.
+on:
+  schedule:
+    - cron: "7 */4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: richy-bot
+  cancel-in-progress: false
+
+jobs:
+  ciclo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-bot.txt
+
+      - run: pip install -r requirements-bot.txt
+
+      - name: Ciclo del bot (paper)
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "::error::Falta el secreto FIREBASE_SERVICE_ACCOUNT (Settings > Secrets and variables > Actions)"; exit 1
+          fi
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          # Los runners de GitHub están en EE. UU., donde api.binance.com responde 451: se usa el espejo de datos.
+          python -m richy.cli live --symbol BTC/USDT --timeframe 4h --mirror data-api.binance.vision --once

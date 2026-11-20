@@ -20,7 +20,7 @@ from .walkforward import _choose_threshold, build_dataset, make_model
 SYMS = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"]
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODEL_PATH = os.path.join(ROOT, "models", "breakout_gbm.joblib")
-STATE_PATH = os.path.join(ROOT, "paper_state.json")
+STATE_PATH = os.path.join(ROOT, "breakout_state.json")
 PRIMARY = Params(sl_atr=2.0, tp_atr=4.0, max_hold=24)
 BAR = pd.Timedelta(hours=4)
 
