@@ -1,0 +1,11 @@
+[Unit]
+Description=Richy + Breakout 4h (un ciclo de cada uno)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# El «-» hace que, si uno falla, el otro corra igual.
+ExecStart=-/bin/bash @REPO@/deploy/kali/run_cycle.sh richy
+ExecStart=-/bin/bash @REPO@/deploy/kali/run_cycle.sh breakout
+TimeoutStartSec=1500
