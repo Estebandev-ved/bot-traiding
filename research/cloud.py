@@ -140,6 +140,12 @@ class FileStore:
     def publish(self, state, bundle):
         pass
 
+    def strategy_flags(self, names, defaults=None):
+        return {n: (defaults or {}).get(n, True) for n in names}
+
+    def put_status(self, name, data):
+        pass
+
 
 class FirestoreStore:
     """Estado y modelo en Firestore + publicación para el panel. Requiere GOOGLE_APPLICATION_CREDENTIALS."""
@@ -174,6 +180,17 @@ class FirestoreStore:
 
     def save_model(self, bundle):
         self.db.collection("bot_state").document("breakout_model").set({"b64": pack_bundle(bundle), "updated": time.time()})
+
+    def strategy_flags(self, names, defaults=None):
+        """Interruptores del panel (strategies/{id}.enabled). Si no existen, vale el valor por defecto."""
+        out, defaults = {}, defaults or {}
+        for n in names:
+            d = self._get("strategies", n)
+            out[n] = bool(d.get("enabled", defaults.get(n, True))) if d else defaults.get(n, True)
+        return out
+
+    def put_status(self, name, data):
+        self.db.collection("breakout_status").document(name).set({**data, "updated": time.time()})
 
     def publish(self, state, bundle):
         now = time.time()

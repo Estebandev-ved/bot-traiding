@@ -1,7 +1,7 @@
-# Guía de uso: Richy + Breakout 4h + panel de Firebase
+# Guía de uso: Richy + Breakout 4h + Noticias + Telegram + panel de Firebase
 
 Todo funciona en **paper trading** (precios reales de Binance, **sin dinero real**). Esta guía explica qué hay,
-cómo activarlo, cómo comprobar que corre y cómo leer el panel.
+cómo activarlo, cómo comprobar que corre, cómo recibir avisos por Telegram y cómo leer el panel.
 
 ---
 
@@ -9,11 +9,13 @@ cómo activarlo, cómo comprobar que corre y cómo leer el panel.
 
 | Pieza | Qué hace | Dónde se ve |
 |---|---|---|
-| **Richy** (`richy/`) | Bot de tendencia en BTC/USDT 4h con gestión de riesgo, noticias y funding. Capital simulado de 10,000 USDT. | Panel de Firebase → pestañas **Panel** y **Operaciones** |
-| **Breakout 4h** (`research/`, `paper_trader.py`) | Bot de ruptura de máximos en 5 pares (BTC, ETH, BNB, SOL, XRP) con filtro de aprendizaje automático. Capital simulado de 25 USDT, como tu cuenta real. | Panel de Firebase → pestaña **Breakout 4h** |
-| **Panel de Firebase** (`web/index.html`) | Página privada (login con tu Google) que lee Firestore: `https://bot-richy.firebaseapp.com` | Navegador |
+| **Richy** (`richy/`) | Bot de tendencia en BTC/USDT 4h con gestión de riesgo, filtro de noticias y funding. Capital simulado de 10,000 USDT. | Panel → **Richy** |
+| **Breakout 4h** (`research/`, `paper_trader.py`) | Bot de ruptura de máximos en 5 pares (BTC, ETH, BNB, SOL, XRP) con filtro de aprendizaje automático. Capital simulado de 25 USDT, como tu cuenta real. | Panel → **Breakout 4h** |
+| **Noticias** (`newsfeed/`, `news_bot.py`) | Cada hora descarga titulares en español e inglés, el índice Fear & Greed, avisa de noticias de riesgo y vigila que los otros bots sigan escribiendo. | Panel → **Noticias** |
+| **Telegram** (`alerts/`) | Mensajes a tu móvil: posiciones abiertas, cierres, resumen diario, noticias de riesgo y alertas del sistema. | Tu Telegram; se configura en Panel → **Ajustes** |
+| **Panel de Firebase** (`web/index.html`) | Página privada (login con tu Google): `https://bot-richy.firebaseapp.com` | Navegador |
 | **Laboratorio de validación** (`research/`) | Descarga datos, simula con comisiones y valida fuera de muestra. Produce `reports/`. | `reports/INFORME_VALIDACION.md` |
-| **Dashboard de Streamlit** (`dashboard.py`) | Panel local opcional (NEXUS Terminal) con pestaña Paper Trading. | `python -m streamlit run dashboard.py` |
+| **Dashboard de Streamlit** (`dashboard.py`) | Panel local opcional (NEXUS Terminal). Ya no hace falta si usas el panel de Firebase. | `python -m streamlit run dashboard.py` |
 | `bot-richy.py` (original) | Bot antiguo. **No lo uses con dinero**: su backtest tiene fuga de información y no cuenta comisiones. | — |
 
 **Estado honesto de la estrategia Breakout 4h** (detalle en `reports/INFORME_VALIDACION.md`): ganó +81 % entre 2022 y
@@ -22,141 +24,221 @@ Por eso solo se usa en simulación hasta reunir ~100 trades en vivo (a ~3–7 tr
 
 ---
 
-## 2. Verificación de GitHub Actions (lo que encontré)
+## 2. Puesta en marcha en GitHub Actions
 
-Revisé tu repositorio el 2026-11-20:
+Los tres bots corren solos en GitHub (sin tu PC) con estos workflows, que **solo se ejecutan si están en la rama `main`**:
 
-- **GitHub Actions no tiene ningún workflow ni ninguna ejecución.**
-- El workflow de Richy (`bot.yml`) estaba solo en la rama `ccr-69142cb1-o754l1` (PR #2, **sin fusionar a `main`**).
-- GitHub **solo ejecuta los horarios (`cron`) desde la rama por defecto (`main`)**.
+| Workflow | Frecuencia | Qué hace |
+|---|---|---|
+| `richy-bot` | cada 4 h (:07) | Un ciclo de Richy |
+| `breakout-bot` | cada 4 h (:09) | Un ciclo de Breakout 4h |
+| `news-bot` | cada hora (:17) | Noticias, Fear & Greed, alertas de riesgo y vigilante |
 
-**Conclusión: el bot no ha estado corriendo en GitHub Actions.** Si en el panel ves datos de Richy, vinieron de
-otra parte (por ejemplo, de haberlo ejecutado a mano en tu PC).
+### Secretos (Settings → Secrets and variables → Actions → New repository secret)
 
-### Cómo activarlo (una sola vez)
+| Nombre | Obligatorio | Contenido |
+|---|---|---|
+| `FIREBASE_SERVICE_ACCOUNT` | **Sí** | Todo el texto del JSON de la cuenta de servicio de Firebase |
+| `TELEGRAM_BOT_TOKEN` | Para Telegram | Token que te da @BotFather |
+| `TELEGRAM_CHAT_ID` | Para Telegram | Tu chat_id (ver sección 3) |
 
-1. **Llevar el código a `main`.** En GitHub: *Pull requests → New pull request* → base `main`, compare
-   `claude/epic-feynman-pxcmqd` → *Create pull request* → *Merge*. Esa rama ya incluye todo lo de Richy (PR #2) más
-   Breakout 4h; después puedes cerrar el PR #2.
-2. **Crear el secreto.** *Settings → Secrets and variables → Actions → New repository secret*:
-   nombre `FIREBASE_SERVICE_ACCOUNT`, valor = **todo el contenido** del JSON de la cuenta de servicio
-   (Firebase → Configuración del proyecto → Cuentas de servicio → *Generar nueva clave privada*; ábrelo con el Bloc
-   de notas y copia todo). **Nunca** subas ese JSON al repositorio.
-3. **Habilitar y probar.** Pestaña *Actions* → si pide confirmación, pulsa *"I understand my workflows, go ahead and
-   enable them"*. Elige **breakout-bot** → *Run workflow* → rama `main`. Repite con **richy-bot**.
-4. **Comprobar.** En 2–4 minutos cada ejecución debe quedar con ✔ verde. Abre la ejecución → *ciclo*: la primera vez
-   verás `Almacén: Firestore | modelo re-entrenado`.
-5. **Publicar el panel nuevo.** En PowerShell, en la carpeta del proyecto:
+Para copiar el JSON sin abrirlo (PowerShell) y vaciar el portapapeles después:
 
 ```powershell
-firebase deploy --only hosting
+Get-Content C:\Users\Lenovo\Documents\bot-traiding\secrets\serviceAccountKey.json -Raw | Set-Clipboard
 ```
 
-> Usa **`--only hosting`**. No despliegues las reglas desde el repositorio: el archivo del repo trae el correo de
-> ejemplo `TU_CORREO@gmail.com` y te dejaría sin acceso. Tu `firestore.rules` local ya tiene tu correo real.
+```powershell
+Set-Clipboard -Value " "
+```
 
-Después, cada 4 horas GitHub corre los dos bots solo. Limitaciones de GitHub Actions: no es 24/7, los horarios pueden
-retrasarse unos minutos y GitHub **desactiva los cron tras 60 días sin actividad** en el repositorio (se reactivan en
-la pestaña *Actions*).
+Nunca subas ese JSON ni el token al repositorio (`secrets/` está ignorado por git).
+
+### Probar cada workflow
+Pestaña *Actions* → elige el workflow → *Run workflow* → rama `main`. En 2–4 minutos debe quedar con ✔ verde.
+Limitaciones de GitHub: no es 24/7, los horarios pueden retrasarse unos minutos y **desactiva los cron tras 60 días sin
+actividad** en el repositorio (se reactivan en la pestaña *Actions*). Uso aproximado: ~900 min/mes de Actions entre los
+tres, dentro del plan gratuito de repositorios privados (2,000 min).
+
+### Publicar el panel
+Desde la carpeta que tenga la última versión del repo (PowerShell). Usa **`--only hosting`**: no despliegues las reglas
+desde el repo, traen el correo de ejemplo `TU_CORREO@gmail.com` y te dejarían sin acceso.
+
+```powershell
+git pull
+```
+
+```powershell
+npx -y firebase-tools@latest deploy --only hosting --project bot-richy
+```
+
+Las reglas actuales de Firestore ya cubren las colecciones nuevas (`news`, `news_status`, `breakout_*`) para lectura, y
+los interruptores del panel se guardan en `strategies/` (donde ya tienes permiso de escritura).
 
 ---
 
-## 3. ¿Está corriendo el bot? (3 comprobaciones)
+## 3. Telegram paso a paso
 
-1. **En el panel** → pestaña **Breakout 4h**: debe verse un punto **verde** «Último ciclo hace X». Rojo = más de 9 h
-   sin escribir (debería escribir cada 4 h).
-2. **En GitHub** → *Actions*: debe haber ejecuciones de `breakout-bot` y `richy-bot` con ✔ cada 4 h.
-   Si Actions está vacío (0 workflows), el workflow aún no está en `main` (paso 1 de la sección 2).
+1. **Crea el bot.** En Telegram busca `@BotFather` → `/newbot` → ponle nombre y usuario → copia el **token**
+   (parece `123456789:AA...`). No lo compartas.
+2. **Inicia el bot.** Abre tu bot nuevo, pulsa **Iniciar** y escríbele «hola».
+3. **Obtén tu chat_id.** En PowerShell, en la carpeta del proyecto (te pedirá el token sin mostrarlo):
+
+```powershell
+pip install requests
+```
+
+```powershell
+python telegram_probar.py --chat-id
+```
+
+   Imprime algo como `TELEGRAM_CHAT_ID = 123456789`.
+4. **Prueba el envío:**
+
+```powershell
+python telegram_probar.py
+```
+
+   Debe llegarte «✅ Prueba de Telegram». Si no, el script dice el motivo (token mal copiado, no pulsaste Iniciar…).
+5. **Guarda los secretos** `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID` en GitHub (sección 2).
+6. **Elige qué avisos quieres** en el panel → **Ajustes → Telegram** (interruptores). Se guardan en Firestore y los bots
+   los leen en su siguiente ciclo.
+
+### Qué mensajes recibirás
+| Mensaje | Cuándo |
+|---|---|
+| 🟢 Posición abierta (Breakout 4h / Richy) | Al abrir una posición simulada |
+| ✅ / 🔴 Ganancia / pérdida | Al cerrar una operación |
+| 📊 Resumen diario (Breakout 4h) | Una vez al día, en el primer ciclo desde las 12:00 UTC |
+| 🚨 Noticia de riesgo | Hackeos, quiebras, prohibiciones… (máx. 3 por hora) |
+| ⏸️ Richy en pausa por noticias / 🛑 Kill switch | Cuando cambia el estado de riesgo de Richy |
+| ⚠️ Bot sin actividad / ✅ volvió a la normalidad | Si Richy o Breakout llevan >9 h sin escribir |
+| ⚠️ *workflow* falló | Si un workflow termina en rojo |
+
+Diseño para no molestarte: **sin duplicados** (cada evento se avisa una vez), **sin aluvión** al activarlo (el historial
+anterior no se envía) y **con reintento** (si Telegram falla, se vuelve a intentar en el siguiente ciclo).
+El token nunca aparece en logs ni en errores.
+
+---
+
+## 4. Noticias
+
+- **Fuentes** (RSS públicos): CoinDesk, Cointelegraph, Decrypt (inglés), Cointelegraph ES y CriptoNoticias (español);
+  índice Fear & Greed de alternative.me. Cada fuente falla por separado y el panel muestra cuál no responde.
+- **Sentimiento** (▲ positiva / ▼ negativa / ● neutral / ⚠ riesgo): heurística por palabras clave en el titular. Es una guía
+  para ordenar y filtrar; **no es análisis financiero ni una recomendación**. También detecta las monedas mencionadas.
+- Se conservan 7 días de noticias; las más viejas se borran solas.
+- **Probar tu red** sin tocar Firestore ni Telegram: `python news_bot.py run --dry` imprime qué fuentes responden.
+- Richy usa su propio filtro de riesgo (`richy/sentiment.py`) para **pausar** operaciones; el feed del panel es aparte y no
+  abre ni cierra operaciones.
+
+---
+
+## 5. Cómo leer el panel
+
+Arriba, las **píldoras de estado** (Richy, Breakout 4h, Noticias, Telegram): verde = escribió hace poco; ámbar = retraso;
+rojo = detenido; gris = nunca ha escrito. Pulsa una para ir a su sección. Los umbrales: bots 5 h / 9 h; noticias 2 h / 4 h.
+
+- **Resumen**: ambos bots, mercado (Fear & Greed), últimas noticias, actividad reciente y estado del sistema.
+- **Richy / Breakout 4h**: el detalle de cada bot. En los gráficos pasa el cursor (o el dedo) para ver fecha y valor y
+  usa 24h / 7d / 30d / Todo para cambiar el rango.
+- **Operaciones**: historial de ambos bots. Pulsa un encabezado para ordenar; filtra por par o resultado; **Exportar CSV**.
+- **Noticias**: filtra por riesgo, sentimiento, moneda o idioma, o busca una palabra.
+- **Ajustes**: color, modo claro/oscuro/automático, sonidos, interruptores de Telegram y estado de los datos.
+- Los avisos emergentes y sonidos saltan cuando entra una operación nueva, se abre una posición o llega una noticia de riesgo.
+
+Cifras: **Profit factor** = ganancia bruta ÷ pérdida bruta (menor que 1 pierde; sano > 1.3). **Caída máx.** = peor caída
+desde un máximo. **Sharpe** = ganancia ajustada por riesgo (> 1 es buena). **Motivo**: `SL` stop · `TP` objetivo ·
+`TIME` cierre por tiempo · `SL_GAP` el precio saltó el stop. **Fear & Greed**: 0 = miedo extremo, 100 = codicia extrema.
+
+---
+
+## 6. ¿Está corriendo el bot? (3 comprobaciones)
+
+1. **En el panel**: las píldoras de arriba en verde y sin banners rojos.
+2. **En GitHub** → *Actions*: ejecuciones recientes con ✔. Si está vacío (0 workflows), los workflows no están en `main`.
 3. **Desde tu PC**, con la clave de servicio:
 
 ```powershell
-$env:GOOGLE_APPLICATION_CREDENTIALS="secrets\serviceAccountKey.json"
+$env:GOOGLE_APPLICATION_CREDENTIALS="C:\Users\Lenovo\Documents\bot-traiding\secrets\serviceAccountKey.json"
+```
+
+```powershell
 pip install firebase-admin
+```
+
+```powershell
 python verificar_nube.py
 ```
 
-Imprime, por cada bot, `OK` (menos de 5 h), `RETRASADO` (5–9 h), `DETENIDO` (más de 9 h) o `SIN DATOS`.
+Imprime, por fuente, `OK`, `RETRASADO`, `DETENIDO` o `SIN DATOS`. Además, el bot de noticias te avisa por Telegram si
+Richy o Breakout dejan de escribir (solo mientras `news-bot` siga corriendo).
 
 ---
 
-## 4. Cómo leer el panel
+## 7. Rutina recomendada
 
-**Pestaña Breakout 4h**
-
-- **Validación**: resultado de la estrategia en el pasado, *fuera de muestra* y con comisiones. «Último año» es el
-  tramo que no se usó para diseñarla.
-- **Equity simulado**: el capital de práctica (parte de 25 USDT).
-- **Progreso a 100 trades**: con menos no se puede distinguir habilidad de suerte.
-- **Profit factor**: ganancia bruta ÷ pérdida bruta. Menor que 1 = pierde dinero; sano: por encima de 1.3.
-- **Caída máx.**: la peor caída desde un máximo. Pregúntate si la aguantarías con dinero real.
-- **Motivo** del trade: `SL` stop loss · `TP` objetivo · `TIME` cierre a las 24 velas de 4 h · `SL_GAP` el precio saltó el stop.
-- **Calculadora**: pones tu capital, tu meta diaria y un rendimiento anual supuesto. Con 16.5 % anual (lo mejor que
-  midió el periodo de diseño, **no confirmado**) $25 rinden ~$0.01 al día; para $1 al día harían falta ~$2,200.
-
-**Pestañas Panel / Operaciones**: son de Richy (semáforo «¿Voy bien?», noticias, funding, interruptores por
-estrategia). **Ajustes**: tema y sonidos (se guardan solo en tu navegador). **Guía**: resumen de esto dentro del panel.
-
----
-
-## 5. Rutina recomendada
-
-- **Una vez por semana**: abre el panel, comprueba el punto verde y cuántos trades van. No hace falta más.
+- **Una vez por semana**: abre el Resumen y comprueba que todo esté verde.
 - **No cambies parámetros a mitad de camino**: el valor del historial es que nadie lo ajustó mirando resultados. El
-  modelo se **re-entrena solo cada 7 días** con datos nuevos (es parte del diseño).
+  modelo de Breakout 4h se **re-entrena solo cada 7 días** con datos nuevos (es parte del diseño).
 - **No pongas dinero real** por una racha corta buena o mala. Decide con 100+ trades y resultado positivo.
-- **No corras el mismo bot en dos sitios a la vez.** Si corres `python paper_trader.py run` en tu PC *sin* `--cloud`,
-  se crea un historial **local distinto** del de GitHub Actions. Elige uno (recomendado: Actions).
-  Con Richy, además, no lo corras en tu PC con la misma base de datos mientras funcione en Actions.
+- **No corras el mismo bot en dos sitios a la vez.** Si ejecutas `python paper_trader.py run` en tu PC *sin* `--cloud`, se
+  crea un historial **local distinto** del de GitHub Actions. Con Richy, no lo corras en tu PC con la misma base de datos
+  mientras funcione en Actions.
 
 ---
 
-## 6. Uso local (opcional, PowerShell)
-
-Carpeta del proyecto. `python`, no `python3`, en Windows.
+## 8. Uso local (opcional, PowerShell)
 
 ```powershell
 pip install -r requirements-research.txt
 python paper_trader.py train        # entrena el modelo (usa el histórico incluido en data_seed/)
-python paper_trader.py run          # procesa velas 4h nuevas, historial local (breakout_state.json)
-python paper_trader.py status       # resumen del historial local
-python -m streamlit run dashboard.py   # dashboard local (pestaña «Paper Trading»)
+python paper_trader.py run          # historial local (breakout_state.json)
+python paper_trader.py status
+python -m pytest tests -q           # pruebas automáticas (pip install pytest ccxt)
 ```
 
-`python paper_trader.py run --cloud` guarda y publica en Firestore (es lo que hace GitHub Actions; necesita
-`GOOGLE_APPLICATION_CREDENTIALS`). Reproducir la validación: `python -m research.run_research` y
-`python -m research.report`.
+`python paper_trader.py run --cloud` guarda y publica en Firestore (es lo que hace GitHub Actions). Reproducir la
+validación: `python -m research.run_research` y `python -m research.report`.
 
 ---
 
-## 7. Problemas frecuentes
+## 9. Problemas frecuentes
 
 | Síntoma | Causa probable | Solución |
 |---|---|---|
-| Actions vacío («0 workflows») | Los workflows no están en `main` | Sección 2, paso 1 |
-| Ejecución roja: «Falta el secreto FIREBASE_SERVICE_ACCOUNT» | No creaste el secreto | Sección 2, paso 2 |
-| Ejecución roja con `403` / `PermissionDenied` de Firestore | Firestore no está creado o la cuenta de servicio es de otro proyecto | Crea Firestore en la consola y genera la clave desde **ese** proyecto |
-| El panel dice «no tiene permiso para ver el panel» | El correo de `firestore.rules` no es el que usaste para entrar | Pon tu correo en `firestore.rules` y despliega las reglas |
-| Panel: «El bot aún no ha publicado nada» | Todavía no hubo ninguna ejecución | Lanza *Run workflow* a mano |
-| Punto rojo «Último ciclo hace X h» | El bot dejó de correr | Mira *Actions*; si pasaron 60 días sin actividad, reactiva los workflows |
-| `streamlit` no se reconoce (Windows) | El Python de la Microsoft Store no pone `Scripts` en el PATH | `python -m streamlit run dashboard.py` |
-| La primera descarga de datos se ve «colgada» | Descarga lenta | Ya no ocurre: el histórico viene en `data_seed/`; solo baja lo nuevo |
-| Binance responde 451 | Bloqueo por región | Los datos usan `data-api.binance.vision`; no hace falta nada |
+| Actions vacío («0 workflows») | Los workflows no están en `main` | Fusiona el PR a `main` |
+| Ejecución roja: «Falta el secreto FIREBASE_SERVICE_ACCOUNT» | No creaste el secreto | Sección 2 |
+| Ejecución roja con `403` / `PermissionDenied` de Firestore | Clave de otro proyecto o Firestore sin crear | Genera la clave desde el proyecto `bot-richy` |
+| No llegan mensajes de Telegram | Faltan los secretos, no pulsaste *Iniciar*, o el interruptor está apagado | `python telegram_probar.py`; revisa Ajustes → Telegram |
+| Ajustes → Telegram dice «No configurado» | Los bots aún no vieron `TELEGRAM_BOT_TOKEN`/`CHAT_ID` | Crea los secretos y espera al próximo ciclo (o lanza el workflow a mano) |
+| Telegram «Error: …401…» | Token incorrecto | Copia el token de @BotFather otra vez |
+| Noticias vacías | `news-bot` aún no corrió, o todas las fuentes fallan | Lanza `news-bot` a mano; mira «Fuentes» en la pestaña Noticias |
+| Una fuente sale «no responde» | Ese sitio cambió su RSS o bloquea el acceso | Las demás siguen funcionando; no afecta a los bots |
+| El panel dice «no tiene permiso» | El correo de `firestore.rules` no es el que usaste | Pon tu correo en `firestore.rules` y despliega las reglas |
+| Píldora roja «hace X h» | El bot dejó de correr | Mira *Actions*; reactiva los workflows si pasaron 60 días |
+| `streamlit`/`firebase` no se reconoce (Windows) | Falta el PATH | `python -m streamlit …` / `npx -y firebase-tools@latest …` |
+| No ves las pestañas nuevas | Caché del navegador o no desplegaste | `Ctrl+F5` o ventana de incógnito; repite el deploy |
 
 ---
 
-## 8. Lo que NO pude verificar desde aquí (hazlo tú)
+## 10. Lo que NO pude verificar desde aquí (hazlo tú)
 
-- **Firestore real, el secreto y el sitio publicado**: probé el almacenamiento con una base de datos **simulada en
-  memoria** y el panel en **modo demo**. La primera ejecución real en GitHub Actions es la prueba definitiva.
-- **Tu sitio `bot-richy.firebaseapp.com`**: mi entorno no puede abrirlo; no sé qué versión del panel está publicada.
-  Hasta que ejecutes `firebase deploy --only hosting`, no tendrá las pestañas nuevas.
+Probé todo con **simulaciones** (58 pruebas automáticas, una base de datos simulada y un navegador real con Firebase
+simulado), pero mi entorno no puede alcanzar estos servicios:
+
+- **Telegram real**: el envío se probó con un doble de prueba. La primera prueba real es `python telegram_probar.py`.
+- **Las fuentes RSS reales**: probé el análisis con XML de ejemplo. La prueba real es `python news_bot.py run --dry` o la
+  primera ejecución de `news-bot`. Si alguna fuente cambió su dirección, el panel mostrará «no responde».
+- **Firestore real y tu sitio publicado**: la primera ejecución de cada workflow y el `deploy` son la prueba definitiva.
 
 ---
 
-## 9. Seguridad
+## 11. Seguridad
 
 - API keys de Binance **sin permiso de retiro** y restringidas por IP, el día que uses dinero real.
-- La `apiKey` web del panel es pública por diseño; la clave **de servicio** (JSON) **no**: va solo como secreto de
-  GitHub o en `secrets/` (ignorado por git).
+- La `apiKey` web del panel es pública por diseño; la clave **de servicio** (JSON) y el **token de Telegram** no: solo como
+  secretos de GitHub o en `secrets/` (ignorado por git). Si alguno se filtra, revócalo (Firebase / @BotFather → `/revoke`).
+- Los enlaces de las noticias solo se abren si empiezan por `http(s)://`, y todo texto externo se escapa antes de mostrarse.
 - Gestionar dinero de terceros puede requerir registro o licencia según tu país: consúltalo con un abogado antes de
   captar fondos. Un backtest no convence a un inversionista; un historial en vivo verificable, sí.

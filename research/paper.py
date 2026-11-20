@@ -198,8 +198,27 @@ def ensure_bundle(store, max_age_days: int = MODEL_MAX_AGE_DAYS) -> tuple[dict, 
     return b, True
 
 
+def notify(state: dict, store, tg=None) -> dict:
+    """Avisos por Telegram (abrir/cerrar/resumen diario). Nunca rompe el ciclo: ante cualquier error solo lo informa."""
+    try:
+        from alerts import Telegram
+        from alerts.breakout import process
+        from alerts.messages import DEFAULT_FLAGS
+        tg = tg or Telegram()
+        flags = store.strategy_flags(list(DEFAULT_FLAGS), defaults=DEFAULT_FLAGS)
+        ev = process(state, tg, flags)
+        store.save_state(state)                       # guarda state["notif"] (qué ya se avisó)
+        n = state.get("notif", {})
+        store.put_status("telegram", {"enabled": tg.enabled, "last_error": tg.last_error,
+                                      "last_sent": n.get("last_sent"), "sent_total": n.get("sent_total", 0)})
+        return ev
+    except Exception as e:
+        print(f"[telegram] no se pudo avisar: {type(e).__name__}: {str(e)[:120]}")
+        return {"sent": 0, "failed": 0}
+
+
 def run_once(capital: float = 25.0, max_positions: int = 3, min_notional: float = 5.0,
-             risk_per_trade: float = 0.02, store=None) -> dict:
+             risk_per_trade: float = 0.02, store=None, tg=None) -> dict:
     """Un ciclo completo: modelo -> datos en vivo -> procesar velas 4h nuevas -> guardar y publicar.
     Lo usan la CLI, el dashboard de Streamlit y GitHub Actions (con store=FirestoreStore)."""
     from .live import fetch_live_4h
@@ -212,11 +231,14 @@ def run_once(capital: float = 25.0, max_positions: int = 3, min_notional: float 
     if nuevo:
         state["last_ts"] = str(last_closed - BAR)   # el historial empieza AHORA
         state["started"] = str(pd.Timestamp.now(tz="UTC"))
+        from alerts.breakout import new_notif
+        state["notif"] = new_notif(state, fresh=True)   # sesión nueva: todo lo que ocurra se avisa
     n_open, n_closed = len(state["positions"]), len(state["closed"])
     n = advance(state, feats, bundle, last_closed, max_positions=max_positions,
                 min_notional=min_notional, risk_per_trade=risk_per_trade)
     store.save_state(state)
     store.publish(state, bundle)
-    return {"nuevo": nuevo, "velas": n, "abiertas": (n_open, len(state["positions"])),
+    ev = notify(state, store, tg)
+    return {"telegram": ev, "nuevo": nuevo, "velas": n, "abiertas": (n_open, len(state["positions"])),
             "cerradas": (n_closed, len(state["closed"])), "equity": state["equity"], "state": state,
             "reentrenado": retrained, "almacen": store.name}
