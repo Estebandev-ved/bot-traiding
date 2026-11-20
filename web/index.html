@@ -295,8 +295,9 @@ input[type=range]{accent-color:var(--ac);width:140px}
 
     <h3>¿Está corriendo el bot? (los puntos de colores)</h3>
     <ul>
-      <li><b>Verde</b>: escribió hace menos de 5 h (los bots escriben cada 4 h; las noticias, cada hora).</li>
-      <li><b>Ámbar</b>: entre 5 y 9 h: retraso. <b>Rojo</b>: más de 9 h: detenido. <b>Gris</b>: nunca ha escrito.</li>
+      <li><b>Verde</b>: escribió hace poco (bots: menos de 6 h; noticias: menos de 2 h).</li>
+      <li><b>Ámbar</b>: retraso (bots 6–12 h; noticias 2–6 h). <b>Rojo</b>: detenido (más de 12 h / 6 h). <b>Gris</b>: nunca ha escrito.</li>
+      <li>GitHub <b>no garantiza</b> los horarios de las tareas programadas y a veces se salta ejecuciones; por eso los bots lo intentan cada hora y las noticias cada 20 min. Un ámbar ocasional es normal.</li>
       <li>Si algo está rojo: GitHub → <b>Actions</b> y mira si hay una marca roja. Si Actions está vacío, los workflows no están en la rama <code>main</code>.</li>
     </ul>
 
@@ -602,9 +603,9 @@ function systems() {
   };
   const feeds = Object.values(state.newsStatus.feeds || {}), fok = feeds.filter(f => f.ok).length;
   const tg = tgInfo();
-  return [mk("richy", "Richy", state.status.updated, 5, 9, "richy"),
-    mk("bo", "Breakout 4h", state.bo.status.updated, 5, 9, "bo"),
-    mk("news", "Noticias", state.newsStatus.updated, 2, 4, "news", feeds.length ? `${fok}/${feeds.length} fuentes` : ""),
+  return [mk("richy", "Richy", state.status.updated, 6, 12, "richy"),
+    mk("bo", "Breakout 4h", state.bo.status.updated, 6, 12, "bo"),
+    mk("news", "Noticias", state.newsStatus.updated, 2, 6, "news", feeds.length ? `${fok}/${feeds.length} fuentes` : ""),
     {id: "tg", name: "Telegram", lv: tg.lv, text: tg.lv === "ok" ? "activo" : tg.lv === "warn" ? "con error" : "no configurado", go: "cfg", detail: tg.text}];
 }
 function renderHeader() {
@@ -619,14 +620,14 @@ function renderHeader() {
   put("#pills", systems().map(s => `<button class="pill ${s.lv}" data-go="${s.go}" title="${esc(s.detail || s.text)}"><i></i><b>${s.name}</b> ${esc(s.text)}</button>`).join(""));
 }
 function renderBanners() {
-  const st = state.status, out = [], b = (kind, html, go) => out.push(`<div class="banner ${kind}"><span>${html}</span>${go ? `<button class="btn" data-go="${go}">Ver</button>` : ""}</div>`);
+  const st = state.status, out = [], b = (kind, html, go, filter) => out.push(`<div class="banner ${kind}"><span>${html}</span>${go ? `<button class="btn" data-go="${go}"${filter ? ` data-filter="${filter}"` : ""}>Ver</button>` : ""}</div>`);
   if (st.killed) b("bad", `<b>Kill switch activado en Richy:</b> ${esc(st.kill_reason || "")}`, "richy");
   else if (st.halted_today) b("", `<b>Richy alcanzó la pérdida diaria máxima.</b> Reanuda mañana.`, "richy");
   const sent = st.sentiment;
-  if (sent && sent.pause) b("", `<b>Richy en pausa por noticias:</b> ${(sent.reasons || []).map(esc).join(" · ") || "señales de riesgo"}`, "news");
+  if (sent && sent.pause) b("", `<b>Richy en pausa por noticias</b> (según su último ciclo, ${ago(st.updated)}): ${(sent.reasons || []).map(esc).join(" · ") || "señales de riesgo"}. No abre posiciones nuevas y se reevalúa en cada ciclo. «Ver» abre los titulares de riesgo.`, "news", "risk");
   if (state.mode !== "demo") systems().filter(s => ["richy", "bo", "news"].includes(s.id)).forEach(s => {
     if (s.lv === "bad") b("bad", `<b>${s.name} no escribe desde hace ${fmt((nowS() - s.upd) / 3600)} h.</b> Revisa GitHub → Actions (ver Guía).`, "guide");
-    else if (s.lv === "warn") b("", `<b>${s.name} lleva ${fmt((nowS() - s.upd) / 3600)} h sin actualizar.</b> Puede ser un retraso de GitHub.`);
+    else if (s.lv === "warn") b("", `<b>${s.name} lleva ${fmt((nowS() - s.upd) / 3600)} h sin actualizar.</b> GitHub no garantiza los horarios y a veces se salta ejecuciones; suele recuperarse solo.`);
   });
   const ns = Object.values(state.newsStatus.feeds || {});
   if (ns.length && !ns.some(f => f.ok)) b("", `<b>Ninguna fuente de noticias responde.</b> Reintenta en la próxima hora.`, "news");
@@ -832,7 +833,7 @@ $("#tabs").addEventListener("keydown", e => {
   showTab(TABS[j]); $(`.tab[data-v="${TABS[j]}"]`).focus(); e.preventDefault();
 });
 document.addEventListener("click", e => {
-  const g = e.target.closest("[data-go]"); if (g) { showTab(g.dataset.go); window.scrollTo({top: 0}); }
+  const g = e.target.closest("[data-go]"); if (g) { if (g.dataset.filter) { nfl.s = g.dataset.filter; nfl.limit = 30; } showTab(g.dataset.go); window.scrollTo({top: 0}); render(); }
   const sw = e.target.closest("#strats .sw[data-k], #tg-card .sw[data-k]"); if (sw) setFlag(sw.dataset.k, sw.dataset.k in NOTIFY ? !flag(sw.dataset.k) : !state.strats[sw.dataset.k]);
 });
 window.addEventListener("hashchange", () => showTab(location.hash.slice(1), true));

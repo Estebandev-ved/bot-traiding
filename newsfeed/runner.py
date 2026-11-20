@@ -10,7 +10,7 @@ from alerts import messages as am
 from . import fetch
 
 WATCH = [("Richy", "status", "current"), ("Breakout 4h", "breakout_status", "current")]
-STALE_H, OK_H = 9.0, 5.0        # >9 h sin escribir = alerta; <5 h = recuperado
+STALE_H, OK_H = 12.0, 6.0       # >12 h sin escribir = alerta; <6 h = recuperado (GitHub retrasa o se salta ejecuciones programadas)
 RISK_WINDOW_H, MAX_ALERTS = 3.0, 3
 
 
@@ -22,9 +22,9 @@ class MemoryStore:
 
     def load_state(self): return self.state
     def save_state(self, s): self.state = s
-    def publish(self, items, feeds, fng, now):
-        self.items = {i["id"]: i for i in items}
-        self.status["current"], self.status["fng"] = {"feeds": feeds, "count": len(items)}, fng
+    def publish(self, items, feeds, fng, now, all_items=None):
+        self.items.update({i["id"]: i for i in items})
+        self.status["current"], self.status["fng"] = {"feeds": feeds, "count": len(all_items if all_items is not None else items)}, fng
     def prune(self, cutoff_ts): self.pruned = cutoff_ts
     def put_status(self, name, data): self.status[name] = data
     def updated(self, col, doc): return self._updated.get((col, doc))
@@ -41,9 +41,13 @@ def run_cycle(store, tg, get=requests.get, now: datetime | None = None) -> dict:
     st = st or {"notified": [], "watch": {}}
 
     # 1) publicar solo si hay algo (si TODAS las fuentes fallan no se borra lo anterior)
+    published = set(st.get("published", []))
     if items or any(f["ok"] for f in feeds.values()):
-        store.publish(items, feeds, fng, now)
+        new = [i for i in items if i["id"] not in published]          # solo se escribe lo nuevo: menos escrituras en Firestore
+        store.publish(new, feeds, fng, now, all_items=items)
         store.prune(int(now.timestamp()) - 7 * 86400)
+        published.update(i["id"] for i in new)
+        st["published"] = sorted(published)[-400:]
     else:
         store.put_status("current", {"feeds": feeds, "count": 0})
 

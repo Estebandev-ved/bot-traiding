@@ -5,7 +5,7 @@ name: richy-bot
 # OJO: GitHub solo ejecuta los horarios (cron) desde la rama por defecto del repositorio.
 on:
   schedule:
-    - cron: "7 */4 * * *"
+    - cron: "41 * * * *"
   workflow_dispatch:
 
 permissions:

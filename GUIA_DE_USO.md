@@ -30,9 +30,15 @@ Los tres bots corren solos en GitHub (sin tu PC) con estos workflows, que **solo
 
 | Workflow | Frecuencia | Qué hace |
 |---|---|---|
-| `richy-bot` | cada 4 h (:07) | Un ciclo de Richy |
-| `breakout-bot` | cada 4 h (:09) | Un ciclo de Breakout 4h |
-| `news-bot` | cada hora (:17) | Noticias, Fear & Greed, alertas de riesgo y vigilante |
+| `richy-bot` | cada hora (:41) | Un ciclo de Richy |
+| `breakout-bot` | cada hora (:23) | Un ciclo de Breakout 4h (solo procesa las velas de 4h nuevas) |
+| `news-bot` | cada 20 min (:11, :31, :51) | Noticias, Fear & Greed, alertas de riesgo y vigilante |
+
+**¿Por qué tan seguido si las velas son de 4 h?** Porque GitHub **no garantiza** los horarios de las tareas programadas: bajo
+carga retrasa o se salta muchas ejecuciones (en las primeras 15 h de este proyecto corrió una sola vez cada bot en vez de
+cada 4 h o cada hora). Cada ciclo es **idempotente** (solo procesa lo nuevo y siempre actualiza el «latido»), así que
+intentarlo con más frecuencia solo mejora la probabilidad de que corra a tiempo. Nunca se pierde una vela: si un ciclo se
+salta, el siguiente procesa todo lo pendiente. Los minutos de Actions son ilimitados porque el repositorio es público.
 
 ### Secretos (Settings → Secrets and variables → Actions → New repository secret)
 
@@ -57,8 +63,8 @@ Nunca subas ese JSON ni el token al repositorio (`secrets/` está ignorado por g
 ### Probar cada workflow
 Pestaña *Actions* → elige el workflow → *Run workflow* → rama `main`. En 2–4 minutos debe quedar con ✔ verde.
 Limitaciones de GitHub: no es 24/7, los horarios pueden retrasarse unos minutos y **desactiva los cron tras 60 días sin
-actividad** en el repositorio (se reactivan en la pestaña *Actions*). Uso aproximado: ~900 min/mes de Actions entre los
-tres, dentro del plan gratuito de repositorios privados (2,000 min).
+actividad** en el repositorio (se reactivan en la pestaña *Actions*). Si algún día haces el repositorio privado,
+ten en cuenta el límite de minutos gratuitos (2,000/mes) y baja la frecuencia de los `cron`.
 
 ### Publicar el panel
 Desde la carpeta que tenga la última versión del repo (PowerShell). Usa **`--only hosting`**: no despliegues las reglas
@@ -112,7 +118,7 @@ python telegram_probar.py
 | 📊 Resumen diario (Breakout 4h) | Una vez al día, en el primer ciclo desde las 12:00 UTC |
 | 🚨 Noticia de riesgo | Hackeos, quiebras, prohibiciones… (máx. 3 por hora) |
 | ⏸️ Richy en pausa por noticias / 🛑 Kill switch | Cuando cambia el estado de riesgo de Richy |
-| ⚠️ Bot sin actividad / ✅ volvió a la normalidad | Si Richy o Breakout llevan >9 h sin escribir |
+| ⚠️ Bot sin actividad / ✅ volvió a la normalidad | Si Richy o Breakout llevan >12 h sin escribir |
 | ⚠️ *workflow* falló | Si un workflow termina en rojo |
 
 Diseño para no molestarte: **sin duplicados** (cada evento se avisa una vez), **sin aluvión** al activarlo (el historial
@@ -123,8 +129,10 @@ El token nunca aparece en logs ni en errores.
 
 ## 4. Noticias
 
-- **Fuentes** (RSS públicos): CoinDesk, Cointelegraph, Decrypt (inglés), Cointelegraph ES y CriptoNoticias (español);
-  índice Fear & Greed de alternative.me. Cada fuente falla por separado y el panel muestra cuál no responde.
+- **Fuentes** (RSS públicos): CoinDesk, Cointelegraph, Decrypt (inglés); CriptoNoticias, BeInCrypto ES y DiarioBitcoin
+  (español); índice Fear & Greed de alternative.me. Cada fuente falla por separado y el panel muestra cuál no responde.
+  (Cointelegraph ES se quitó: su RSS devuelve HTTP 410, retirado. BeInCrypto ES y DiarioBitcoin son candidatas aún sin
+  confirmar en producción; si alguna aparece «no responde», no afecta al resto.)
 - **Sentimiento** (▲ positiva / ▼ negativa / ● neutral / ⚠ riesgo): heurística por palabras clave en el titular. Es una guía
   para ordenar y filtrar; **no es análisis financiero ni una recomendación**. También detecta las monedas mencionadas.
 - Se conservan 7 días de noticias; las más viejas se borran solas.
@@ -137,7 +145,8 @@ El token nunca aparece en logs ni en errores.
 ## 5. Cómo leer el panel
 
 Arriba, las **píldoras de estado** (Richy, Breakout 4h, Noticias, Telegram): verde = escribió hace poco; ámbar = retraso;
-rojo = detenido; gris = nunca ha escrito. Pulsa una para ir a su sección. Los umbrales: bots 5 h / 9 h; noticias 2 h / 4 h.
+rojo = detenido; gris = nunca ha escrito. Pulsa una para ir a su sección. Umbrales: bots 6 h (ámbar) / 12 h (rojo); noticias 2 h / 6 h.
+Un ámbar ocasional es normal (ver sección 2: GitHub se salta ejecuciones).
 
 - **Resumen**: ambos bots, mercado (Fear & Greed), últimas noticias, actividad reciente y estado del sistema.
 - **Richy / Breakout 4h**: el detalle de cada bot. En los gráficos pasa el cursor (o el dedo) para ver fecha y valor y
@@ -216,7 +225,9 @@ validación: `python -m research.run_research` y `python -m research.report`.
 | Noticias vacías | `news-bot` aún no corrió, o todas las fuentes fallan | Lanza `news-bot` a mano; mira «Fuentes» en la pestaña Noticias |
 | Una fuente sale «no responde» | Ese sitio cambió su RSS o bloquea el acceso | Las demás siguen funcionando; no afecta a los bots |
 | El panel dice «no tiene permiso» | El correo de `firestore.rules` no es el que usaste | Pon tu correo en `firestore.rules` y despliega las reglas |
-| Píldora roja «hace X h» | El bot dejó de correr | Mira *Actions*; reactiva los workflows si pasaron 60 días |
+| Aviso ámbar «lleva X h sin actualizar» | GitHub se saltó ejecuciones | Normal; se corrige solo en el siguiente ciclo |
+| Píldora roja «hace X h» (más de 12 h) | El bot dejó de correr | Mira *Actions*; reactiva los workflows si pasaron 60 días |
+| «Richy en pausa por noticias» | Su filtro vio ≥2 titulares con palabras de riesgo (hackeo, demanda, prohibición…) en 6 h, o Fear & Greed ≤10 / ≥92 | No es un error: no abre posiciones nuevas y se reevalúa en cada ciclo. Pulsa **Ver** para leer los titulares. El aviso muestra de cuándo es el último ciclo |
 | `streamlit`/`firebase` no se reconoce (Windows) | Falta el PATH | `python -m streamlit …` / `npx -y firebase-tools@latest …` |
 | No ves las pestañas nuevas | Caché del navegador o no desplegaste | `Ctrl+F5` o ventana de incógnito; repite el deploy |
 

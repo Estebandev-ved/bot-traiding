@@ -7,20 +7,21 @@
   python verificar_nube.py
 
 Estados: OK · RETRASADO · DETENIDO · SIN DATOS (nunca escribió).
-Los bots deberían escribir cada 4 h (OK <5 h, DETENIDO >9 h); las noticias cada hora (OK <2 h, DETENIDO >4 h).
+Bots: OK <6 h, DETENIDO >12 h. Noticias: OK <2 h, DETENIDO >6 h.
 """
 import os
 import sys
 import time
 
-# (etiqueta, colección, documento, horas para «OK», horas para «DETENIDO»). Los bots escriben cada 4 h; las noticias, cada hora.
+# (etiqueta, colección, documento, horas para «OK», horas para «DETENIDO»). Los bots intentan escribir cada hora y las noticias cada 20 min,
+# pero GitHub se salta ejecuciones programadas: por eso los umbrales son holgados.
 CHECKS = [
-    ("Richy · estado (BTC/USDT)", "status", "current", 5, 9),
-    ("Richy · funding", "status", "funding", 5, 9),
-    ("Breakout 4h · estado", "breakout_status", "current", 5, 9),
-    ("Breakout 4h · validación", "breakout_status", "validation", 5, 9),
-    ("Noticias · estado", "news_status", "current", 2, 4),
-    ("Noticias · Fear & Greed", "news_status", "fng", 2, 4),
+    ("Richy · estado (BTC/USDT)", "status", "current", 6, 12),
+    ("Richy · funding", "status", "funding", 6, 12),
+    ("Breakout 4h · estado", "breakout_status", "current", 6, 12),
+    ("Breakout 4h · validación", "breakout_status", "validation", 6, 12),
+    ("Noticias · estado", "news_status", "current", 2, 6),
+    ("Noticias · Fear & Greed", "news_status", "fng", 2, 6),
 ]
 
 

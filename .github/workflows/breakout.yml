@@ -1,12 +1,13 @@
 name: breakout-bot
 
-# Corre UN ciclo del paper trader "Breakout 4h" cada 4 horas (9 min después del cierre de cada vela de 4h).
+# Corre UN ciclo del paper trader "Breakout 4h" cada hora. GitHub retrasa o se salta muchas ejecuciones programadas,
+# así que se intenta cada hora; el ciclo es idempotente: solo procesa las velas de 4h nuevas y siempre actualiza el latido.
 # El estado y el modelo viven en Firestore (bot_state/breakout*), así que no importa que el disco de Actions se borre.
 # OJO: GitHub solo ejecuta los horarios (cron) desde la rama por defecto del repositorio (main).
 # Usa el MISMO secreto FIREBASE_SERVICE_ACCOUNT que richy-bot (Settings > Secrets and variables > Actions).
 on:
   schedule:
-    - cron: "9 */4 * * *"
+    - cron: "23 * * * *"
   workflow_dispatch:
 
 permissions:
