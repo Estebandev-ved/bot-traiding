@@ -1,0 +1,8 @@
+# Todo lo necesario para correr Richy, Breakout 4h y Noticias en un servidor propio (deploy/kali/)
+numpy>=1.26
+pandas>=2.2
+ccxt>=4.3
+firebase-admin>=6.5
+scikit-learn>=1.3
+joblib>=1.3
+requests>=2.31

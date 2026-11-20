@@ -40,6 +40,12 @@ cada 4 h o cada hora). Cada ciclo es **idempotente** (solo procesa lo nuevo y si
 intentarlo con más frecuencia solo mejora la probabilidad de que corra a tiempo. Nunca se pierde una vela: si un ciclo se
 salta, el siguiente procesa todo lo pendiente. Los minutos de Actions son ilimitados porque el repositorio es público.
 
+> **Si GitHub sigue sin cumplir los horarios** (en este proyecto llegó a pasar 4 h sin ninguna ejecución automática),
+> la solución fiable es correr los bots en **tu servidor Kali**: `deploy/kali/LEEME.md` lo explica paso a paso
+> (systemd, cada hora para Richy/Breakout y cada 20 min para noticias, con reintento tras apagados y aviso por Telegram
+> si algo falla). Una vez que el servidor funcione, **desactiva los 3 workflows** en GitHub (Actions → ⋯ → Disable
+> workflow) para que no corran en dos sitios a la vez.
+
 ### Secretos (Settings → Secrets and variables → Actions → New repository secret)
 
 | Nombre | Obligatorio | Contenido |
@@ -191,7 +197,7 @@ Richy o Breakout dejan de escribir (solo mientras `news-bot` siga corriendo).
 - **No cambies parámetros a mitad de camino**: el valor del historial es que nadie lo ajustó mirando resultados. El
   modelo de Breakout 4h se **re-entrena solo cada 7 días** con datos nuevos (es parte del diseño).
 - **No pongas dinero real** por una racha corta buena o mala. Decide con 100+ trades y resultado positivo.
-- **No corras el mismo bot en dos sitios a la vez.** Si ejecutas `python paper_trader.py run` en tu PC *sin* `--cloud`, se
+- **No corras el mismo bot en dos sitios a la vez** (p. ej. GitHub Actions *y* tu servidor): desactiva uno. Si ejecutas `python paper_trader.py run` en tu PC *sin* `--cloud`, se
   crea un historial **local distinto** del de GitHub Actions. Con Richy, no lo corras en tu PC con la misma base de datos
   mientras funcione en Actions.
 

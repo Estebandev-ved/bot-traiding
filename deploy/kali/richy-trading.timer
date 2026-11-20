@@ -1,0 +1,11 @@
+[Unit]
+Description=Richy + Breakout 4h cada hora (minuto 5)
+
+[Timer]
+OnCalendar=*-*-* *:05:00
+RandomizedDelaySec=45
+# Si el servidor estuvo apagado, ejecuta al arrancar lo que se perdió.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

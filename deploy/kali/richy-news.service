@@ -1,0 +1,9 @@
+[Unit]
+Description=Bot de noticias (un ciclo)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=-/bin/bash @REPO@/deploy/kali/run_cycle.sh news
+TimeoutStartSec=900
