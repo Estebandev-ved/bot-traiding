@@ -122,6 +122,10 @@ def live(a):
     news = None if a.no_news else SentimentFilter()
     funding, fx, f_last, f_warned = FundingPaper(sink=sink), None, 0.0, False
     sent_tr = set()
+    from alerts import Telegram
+    from alerts.messages import DEFAULT_FLAGS
+    from alerts import richy as tg_richy
+    tg = Telegram()
     print(f"[paper] {a.symbol} {a.timeframe} · capital inicial {session.state['equity0']:,.0f} USDT · "
           f"noticias={'apagado' if news is None else 'activo'} · Ctrl+C para detener")
     while not risk.killed:
@@ -152,6 +156,14 @@ def live(a):
         sink.status(**_clean(dict(symbol=a.symbol, mode="paper", equity=float(eq.iloc[-1]), total_return=m["total_return"],
                     max_drawdown=m["max_drawdown"], trades=m["trades"], killed=rk["killed"], kill_reason=rk["kill_reason"],
                     halted_today=rk["halted_today"], position=op, scorecard=card, sentiment=sent)))
+        try:                                                                 # Telegram: nunca debe romper el ciclo
+            tgs = session.state.setdefault("tg", {})
+            nflags = sink.strategy_flags(list(DEFAULT_FLAGS), defaults=DEFAULT_FLAGS)
+            tg_richy.process(tgs, a.symbol, res, sent, rk, nflags, tg)
+            session.save()
+            sink.doc("telegram", **_clean({"enabled": tg.enabled, "last_error": tg.last_error, "last_sent": tg.last_sent}))
+        except Exception as e:
+            print("[telegram] no se pudo avisar:", type(e).__name__, str(e)[:100])
         if time.time() - f_last > 600:                                      # funding: cada 10 min, sin bloquear el bot
             f_last = time.time()
             try:
@@ -174,6 +186,14 @@ def live(a):
         time.sleep(60)
     print("KILL SWITCH:", risk.kill_reason)
     sink.status(killed=True, kill_reason=risk.kill_reason)
+    try:
+        from alerts.messages import richy_kill
+        if tg.enabled and not session.state.get("tg", {}).get("kill"):
+            if tg.send(richy_kill(risk.kill_reason)):
+                session.state.setdefault("tg", {})["kill"] = True
+                session.save()
+    except Exception as e:
+        print("[telegram] no se pudo avisar del kill switch:", type(e).__name__)
 
 
 if __name__ == "__main__":
