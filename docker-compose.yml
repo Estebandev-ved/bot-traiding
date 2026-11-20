@@ -1,0 +1,21 @@
+services:
+  db:
+    image: timescale/timescaledb:latest-pg16
+    environment: { POSTGRES_PASSWORD: "${DB_PASSWORD:?define DB_PASSWORD}", POSTGRES_DB: richy }
+    volumes: [ "pgdata:/var/lib/postgresql/data", "./infra/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro" ]
+    ports: [ "127.0.0.1:5432:5432" ]
+    restart: unless-stopped
+  bot:
+    build: .
+    command: python -m richy.cli live --symbol BTC/USDT --exchange binance   # paper; añade --real para operar de verdad
+    env_file: [ config.env ]
+    environment: { GOOGLE_APPLICATION_CREDENTIALS: /secrets/serviceAccountKey.json }
+    volumes: [ "./secrets:/secrets:ro" ]
+    depends_on: [ db ]
+    restart: unless-stopped
+  grafana:
+    image: grafana/grafana:latest
+    ports: [ "127.0.0.1:3000:3000" ]
+    volumes: [ "grafana:/var/lib/grafana" ]
+    restart: unless-stopped
+volumes: { pgdata: {}, grafana: {} }

@@ -80,4 +80,21 @@ Thumbs.db
 # ===========================================
 config_local.py
 settings_local.py
+
+# Richy / Firebase: nunca subir credenciales
+secrets/
+serviceAccountKey*.json
+.firebaserc
+config.env
+datos/
+paper_state.json
 bot_settings.json
+
+# ===========================================
+# LABORATORIO DE INVESTIGACIÓN / BREAKOUT 4h
+# ===========================================
+data/
+models/
+breakout_state.json
+breakout.log
+funding_state.json
