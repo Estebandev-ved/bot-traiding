@@ -18,6 +18,7 @@ import streamlit.components.v1 as components
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from settings_store import DEFAULTS, load_settings, save_settings  # noqa: E402
+import dashboard_paper  # noqa: E402
 
 try:
     from metrics import PerformanceMetrics
@@ -451,9 +452,11 @@ def config_tab():
 # ---------------------------------------------------------------- main
 inject_css()
 header(0)
-tab_live, tab_hist, tab_cfg = st.tabs([":material/monitoring: Panel", ":material/receipt_long: Operaciones", ":material/tune: Configuración"])
+tab_live, tab_paper, tab_hist, tab_cfg = st.tabs([":material/monitoring: Panel", ":material/science: Paper Trading", ":material/receipt_long: Operaciones", ":material/tune: Configuración"])
 with tab_live:
     live_panel()
+with tab_paper:
+    dashboard_paper.render(kpi, fmt_money, style_fig, WIN, LOSS)
 with tab_hist:
     history_tab()
 with tab_cfg:

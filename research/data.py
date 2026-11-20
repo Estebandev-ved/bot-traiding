@@ -102,7 +102,7 @@ def resample_ohlcv(df: pd.DataFrame, rule: str) -> pd.DataFrame:
 def load_symbols(symbols: Iterable[str], timeframe: str = "1h", start: str = DEFAULT_START) -> dict:
     data = {}
     for s in symbols:
-        print(f"Datos {s} (la primera vez descarga ~7 años, puede tardar unos minutos)...", flush=True)
+        print(f"Datos {s} (actualizando velas nuevas)...", flush=True)
         df = download_klines(s, "1h", start)
         data[s] = df if timeframe == "1h" else resample_ohlcv(df, timeframe)
     return data

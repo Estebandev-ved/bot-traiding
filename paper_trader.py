@@ -18,7 +18,6 @@ import sys
 import pandas as pd
 
 from research import paper
-from research.live import fetch_live_4h
 
 
 def cmd_train(_):
@@ -28,22 +27,12 @@ def cmd_train(_):
 
 
 def cmd_run(a):
-    if not os.path.exists(paper.MODEL_PATH):
-        print("No hay modelo; entrenando uno nuevo...")
-        paper.train_final()
-    bundle = paper.load_bundle()
-    state = paper.load_state(capital=a.capital)
-    frames, last_closed = fetch_live_4h(paper.SYMS)
-    feats = paper.make_features(frames)
-    if state["last_ts"] is None:
-        state["last_ts"] = str(last_closed - pd.Timedelta(hours=4))   # el historial empieza AHORA
+    r = paper.run_once(a.capital, a.max_positions, a.min_notional, a.risk)
+    state = r["state"]
+    if r["nuevo"]:
         print(f"Nuevo historial de paper trading con capital {state['capital_initial']} USDT")
-    n_open, n_closed = len(state["positions"]), len(state["closed"])
-    n = paper.advance(state, feats, bundle, last_closed, max_positions=a.max_positions,
-                      min_notional=a.min_notional, risk_per_trade=a.risk)
-    paper.save_state(state)
-    print(f"[{pd.Timestamp.now(tz='UTC'):%Y-%m-%d %H:%M}Z] velas nuevas: {n} | abiertas {n_open}->{len(state['positions'])}"
-          f" | cerradas {n_closed}->{len(state['closed'])} | equity {state['equity']:.4f}")
+    print(f"[{pd.Timestamp.now(tz='UTC'):%Y-%m-%d %H:%M}Z] velas nuevas: {r['velas']} | abiertas {r['abiertas'][0]}->{r['abiertas'][1]}"
+          f" | cerradas {r['cerradas'][0]}->{r['cerradas'][1]} | equity {state['equity']:.4f}")
     for sym, p in state["positions"].items():
         print(f"   ABIERTA {sym}: entrada {p['entry']:.4f} SL {p['stop']:.4f} TP {p['target']:.4f} "
               f"tamaño {p['size']:.2f} USDT (p={p['p']:.2f})")

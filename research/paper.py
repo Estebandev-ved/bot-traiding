@@ -169,3 +169,24 @@ def summary(state: dict) -> dict:
                     if (c.pnl <= 0).any() and c.loc[c.pnl <= 0, "pnl"].sum() != 0 else None,
                     "max_dd_realizado": float((c["equity_after"] / c["equity_after"].cummax() - 1).min())})
     return out
+
+
+def run_once(capital: float = 25.0, max_positions: int = 3, min_notional: float = 5.0,
+             risk_per_trade: float = 0.02) -> dict:
+    """Un ciclo completo: datos en vivo -> procesar velas 4h nuevas -> guardar estado. Lo usan la CLI y el dashboard."""
+    from .live import fetch_live_4h
+    if not os.path.exists(MODEL_PATH):
+        train_final()
+    bundle = load_bundle()
+    state = load_state(capital=capital)
+    frames, last_closed = fetch_live_4h(SYMS)
+    feats = make_features(frames)
+    nuevo = state["last_ts"] is None
+    if nuevo:
+        state["last_ts"] = str(last_closed - BAR)   # el historial empieza AHORA
+    n_open, n_closed = len(state["positions"]), len(state["closed"])
+    n = advance(state, feats, bundle, last_closed, max_positions=max_positions,
+                min_notional=min_notional, risk_per_trade=risk_per_trade)
+    save_state(state)
+    return {"nuevo": nuevo, "velas": n, "abiertas": (n_open, len(state["positions"])),
+            "cerradas": (n_closed, len(state["closed"])), "equity": state["equity"], "state": state}

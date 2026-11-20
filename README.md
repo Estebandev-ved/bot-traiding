@@ -79,6 +79,8 @@ python -m research.report              # gráfico y tablas -> reports/
 python3 paper_trader.py train          # entrena el modelo con todo el histórico
 python3 paper_trader.py run            # procesa velas 4h nuevas (cron: 2 */4 * * *)
 python3 paper_trader.py status         # historial en vivo (sin dinero)
+
+streamlit run dashboard.py             # pestaña «Paper Trading»: historial en vivo, validación y calculadora de capital
 ```
 
 Módulos: `research/features.py` (indicadores sin TA-Lib), `engine.py` (simulador con SL/TP, comisiones, slippage),
