@@ -146,7 +146,7 @@ def test_risk_news_alerts_once_and_respects_flag():
 
 def test_watchdog_alerts_when_bot_stalls_and_when_it_recovers():
     now_ts = NOW.timestamp()
-    store = MemoryStore(updated={("status", "current"): now_ts - 12 * 3600, ("breakout_status", "current"): now_ts - 3600})
+    store = MemoryStore(updated={("status", "current"): now_ts - 15 * 3600, ("breakout_status", "current"): now_ts - 3600})
     tg = TG()
     cycle(store, tg)
     assert any("Richy sin actividad" in t for t in tg.out) and not any("Breakout" in t for t in tg.out)
@@ -170,3 +170,23 @@ def test_all_feeds_failing_keeps_previous_news():
     before = dict(store.items)
     r = run_cycle(store, tg, get=lambda url, **kw: R("", 500), now=NOW)
     assert r["feeds_ok"] == 0 and store.items == before
+
+
+def test_delay_between_6_and_12_hours_does_not_alert():
+    """GitHub se salta ejecuciones programadas: un retraso de 8 h es normal y no debe despertarte."""
+    now_ts = NOW.timestamp()
+    store, tg = MemoryStore(updated={("status", "current"): now_ts - 8 * 3600}), TG()
+    cycle(store, tg)
+    assert not any("sin actividad" in t for t in tg.out)
+
+
+def test_only_new_news_are_written_each_cycle():
+    store, tg = MemoryStore(), TG()
+    cycle(store, tg)
+    first = dict(store.items)
+    writes = []
+    orig = store.publish
+    store.publish = lambda items, *a, **k: (writes.append(len(items)), orig(items, *a, **k))[1]
+    cycle(store, tg)                                   # mismos titulares: nada nuevo que escribir
+    assert writes == [0] and store.items == first
+    assert store.status["current"]["count"] == len(first)           # pero los conteos siguen reflejando todo lo vigente

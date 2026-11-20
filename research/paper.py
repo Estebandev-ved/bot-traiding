@@ -237,7 +237,7 @@ def run_once(capital: float = 25.0, max_positions: int = 3, min_notional: float 
     n = advance(state, feats, bundle, last_closed, max_positions=max_positions,
                 min_notional=min_notional, risk_per_trade=risk_per_trade)
     store.save_state(state)
-    store.publish(state, bundle)
+    store.publish(state, bundle, full=nuevo or len(state["closed"]) != n_closed)
     ev = notify(state, store, tg)
     return {"telegram": ev, "nuevo": nuevo, "velas": n, "abiertas": (n_open, len(state["positions"])),
             "cerradas": (n_closed, len(state["closed"])), "equity": state["equity"], "state": state,

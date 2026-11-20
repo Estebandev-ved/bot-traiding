@@ -1,11 +1,11 @@
 name: news-bot
 
-# Cada hora: descarga titulares cripto (ES/EN) y el índice Fear & Greed, los publica en Firestore para el panel,
+# Cada 20 minutos (GitHub se salta muchas ejecuciones programadas): descarga titulares cripto (ES/EN) y el índice Fear & Greed, los publica en Firestore para el panel,
 # avisa por Telegram de noticias de riesgo y vigila que Richy y Breakout 4h sigan escribiendo.
 # OJO: GitHub solo ejecuta los horarios (cron) desde la rama por defecto (main).
 on:
   schedule:
-    - cron: "17 * * * *"
+    - cron: "11,31,51 * * * *"
   workflow_dispatch:
 
 permissions:

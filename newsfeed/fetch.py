@@ -21,8 +21,10 @@ FEEDS = [
     {"id": "coindesk", "name": "CoinDesk", "lang": "en", "url": "https://www.coindesk.com/arc/outboundfeeds/rss/"},
     {"id": "cointelegraph", "name": "Cointelegraph", "lang": "en", "url": "https://cointelegraph.com/rss"},
     {"id": "decrypt", "name": "Decrypt", "lang": "en", "url": "https://decrypt.co/feed"},
-    {"id": "cointelegraph_es", "name": "Cointelegraph ES", "lang": "es", "url": "https://es.cointelegraph.com/rss"},
     {"id": "criptonoticias", "name": "CriptoNoticias", "lang": "es", "url": "https://www.criptonoticias.com/feed/"},
+    # Cointelegraph ES se retiró (HTTP 410). Estas dos son candidatas: si alguna falla, el panel muestra «no responde».
+    {"id": "beincrypto_es", "name": "BeInCrypto ES", "lang": "es", "url": "https://es.beincrypto.com/feed/"},
+    {"id": "diariobitcoin", "name": "DiarioBitcoin", "lang": "es", "url": "https://www.diariobitcoin.com/index.php/feed/"},
 ]
 FNG_URL = "https://api.alternative.me/fng/?limit=8"
 UA = {"User-Agent": "Mozilla/5.0 (compatible; richy-news/1.0)"}

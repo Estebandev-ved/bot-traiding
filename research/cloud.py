@@ -137,7 +137,7 @@ class FileStore:
         os.makedirs(os.path.dirname(self.model_path), exist_ok=True)
         joblib.dump(bundle, self.model_path)
 
-    def publish(self, state, bundle):
+    def publish(self, state, bundle, full=True):
         pass
 
     def strategy_flags(self, names, defaults=None):
@@ -192,12 +192,16 @@ class FirestoreStore:
     def put_status(self, name, data):
         self.db.collection("breakout_status").document(name).set({**data, "updated": time.time()})
 
-    def publish(self, state, bundle):
+    def publish(self, state, bundle, full=True):
+        """Siempre escribe el estado y la validación (latido). `full` además reescribe la curva de equity y los trades:
+        solo hace falta cuando se cerró un trade o la sesión es nueva."""
         now = time.time()
         self.db.collection("breakout_status").document("current").set({**status_payload(state, bundle), "updated": now})
         val = validation_payload()
         if val:
             self.db.collection("breakout_status").document("validation").set({**val, "updated": now})
+        if not full:
+            return
         pts = equity_points(state)
         col = self.db.collection("breakout_equity")
         for i in range(0, len(pts), 400):

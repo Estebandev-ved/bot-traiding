@@ -51,15 +51,17 @@ class FirestoreNews:
             out[n] = bool(d.get("enabled", defaults.get(n, True))) if d else defaults.get(n, True)
         return out
 
-    def publish(self, items, feeds, fng, now):
+    def publish(self, items, feeds, fng, now, all_items=None):
+        """`items` = noticias nuevas a escribir; `all_items` = todas las vigentes (para los conteos del estado)."""
+        everything = items if all_items is None else all_items
         col = self.db.collection("news")
         for i in range(0, len(items), 400):
             b = self.db.batch()
             for it in items[i:i + 400]:
                 b.set(col.document(it["id"]), it)
             b.commit()
-        self.put_status("current", {"feeds": feeds, "count": len(items), "risk_count": sum(1 for x in items if x["risk"]),
-                                    "newest": items[0]["ts"] if items else None})
+        self.put_status("current", {"feeds": feeds, "count": len(everything), "risk_count": sum(1 for x in everything if x["risk"]),
+                                    "newest": everything[0]["ts"] if everything else None})
         if fng:
             self.put_status("fng", fng)
 
