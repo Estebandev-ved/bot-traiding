@@ -20,6 +20,7 @@ class NullSink:
     def trade(self, t: dict): pass
     def equity_batch(self, points): pass
     def strategy_flags(self, names, defaults=None): return {n: (defaults or {}).get(n, True) for n in names}
+    def get_gate(self): return None
 
 
 class FirebaseSink:
@@ -60,6 +61,15 @@ class FirebaseSink:
             for ts, v in points[i:i + 400]:
                 b.set(col.document(str(int(ts))), {"t": int(ts), "v": float(v)})
             b.commit()
+
+    def get_gate(self):
+        """Compuerta del gestor de portafolio. Si no se puede leer, devuelve None y el bot opera normal."""
+        try:
+            d = self.db.collection("portfolio_status").document("gate").get()
+            return d.to_dict() if d.exists else None
+        except Exception as e:
+            print(f"[portafolio] no se pudo leer la compuerta ({type(e).__name__}); opero normal")
+            return None
 
     def strategy_flags(self, names, defaults=None):
         out, defaults = {}, defaults or {}

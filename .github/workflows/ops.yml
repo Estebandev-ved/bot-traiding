@@ -1,0 +1,58 @@
+name: ops-bot
+
+# Cada hora (minuto 47): gestor de portafolio (Richy + Breakout 4h), deriva paper-vs-backtest y salud de los ciclos.
+# Escribe la «compuerta» en Firestore (portfolio_status/gate) que leen los dos bots antes de abrir posiciones nuevas.
+# La compuerta falla ABIERTA: si este workflow se cae o la compuerta tiene más de 12 h, los bots operan normal.
+# OJO: GitHub solo ejecuta los horarios (cron) desde la rama por defecto del repositorio (main).
+# Usa el MISMO secreto FIREBASE_SERVICE_ACCOUNT que richy-bot y breakout-bot.
+on:
+  schedule:
+    - cron: "47 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ops-bot
+  cancel-in-progress: false
+
+jobs:
+  ciclo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-ops.txt
+
+      - run: pip install -r requirements-ops.txt
+
+      - name: Ciclo de operación (portafolio, deriva, salud)
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "::error::Falta el secreto FIREBASE_SERVICE_ACCOUNT (Settings > Secrets and variables > Actions)"; exit 1
+          fi
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          python ops_bot.py run --cloud
+
+      - name: Avisar por Telegram si falla
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
+            curl -sS -m 20 -o /dev/null "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+              --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+              --data-urlencode "text=⚠️ ${GITHUB_WORKFLOW} falló. Revisa: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" || true
+          fi

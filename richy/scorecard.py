@@ -1,7 +1,12 @@
 """Semáforo "¿voy bien?": compara el paper trading contra criterios mínimos y contra comprar y mantener."""
 import math
 
-TARGETS = {"days": 60, "trades": 30, "profit_factor": 1.3, "sharpe": 1.0, "max_drawdown": -0.15}
+from research.robust import robustness, verdict as robust_verdict
+
+# n_trials: configuraciones que se miraron antes de quedarse con esta (4h vs 1h, solo largos vs largos+cortos...).
+# El Sharpe deflactado (DSR) descuenta esa selección; sin ella un PSR alto engaña.
+TARGETS = {"days": 60, "trades": 30, "profit_factor": 1.3, "sharpe": 1.0, "max_drawdown": -0.15,
+           "psr": 0.95, "n_trials": 4}
 
 
 def _num(v, cap=99.0):
@@ -41,6 +46,20 @@ def scorecard(res: dict, closed, start_ts, targets: dict = None) -> dict:
             f"bot {ret:+.1%} (caída {m['max_drawdown']:.0%}) · mercado {bh:+.1%} (caída {bh_dd:.0%})",
             "Mide retorno entre caída máxima: una estrategia defensiva puede rendir menos en mercado alcista y aun así ser mejor por riesgo."),
     ]
+    rets = [float(tr["pnl"]) / (float(tr["qty"]) * float(tr["entry"])) for tr in res.get("trades", [])
+            if float(tr.get("qty", 0)) * float(tr.get("entry", 0)) > 0]
+    rb = robustness(rets, n_trials=int(t["n_trials"]))
+    psr_v = _num(rb.get("psr")) if rb.get("enough") else None
+    checks.append(chk("psr", "¿Es habilidad o suerte? (PSR)", psr_v, t["psr"], (psr_v or 0) >= t["psr"], trades < t["trades"] or psr_v is None,
+                      f"{psr_v:.0%} (meta ≥ {t['psr']:.0%})" if psr_v is not None else "—",
+                      "Probabilidad de que el Sharpe real sea positivo, corrigiendo por pocas operaciones y colas gordas. "
+                      "El Sharpe deflactado además descuenta las configuraciones probadas."))
+    robust = None
+    if rb.get("enough"):
+        mc = rb["mc"]
+        robust = {"psr": _num(rb["psr"]), "dsr": _num(rb["dsr"]), "n_trials": rb["n_trials"],
+                  "min_trades_95": _num(rb["min_trades_95"], cap=1e6), "sharpe_ci95": [_num(x) for x in rb["sharpe_ci95"]],
+                  "mc_dd_p95": _num(mc["dd_p95"]), "mc_p_loss": _num(mc["p_loss"]), "verdict": robust_verdict(rb)}
     enough = days >= t["days"] and trades >= t["trades"]
     bad = [c for c in checks if c["state"] == "bad" and c["key"] not in ("days", "trades")]
     if not enough:
@@ -49,4 +68,5 @@ def scorecard(res: dict, closed, start_ts, targets: dict = None) -> dict:
         verdict, state = "No cumple: " + ", ".join(c["label"].lower() for c in bad) + ". No pasar a dinero real.", "bad"
     else:
         verdict, state = "Cumple los criterios mínimos. Aún así, empieza con muy poco capital.", "ok"
-    return {"verdict": verdict, "state": state, "checks": checks, "ret": _num(ret), "bh_ret": _num(bh), "days": round(days, 1)}
+    return {"verdict": verdict, "state": state, "checks": checks, "ret": _num(ret), "bh_ret": _num(bh), "days": round(days, 1),
+            "robust": robust}

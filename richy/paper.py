@@ -44,8 +44,10 @@ class PaperSession:
         self._save()
 
     def update(self, closed: pd.DataFrame, strategy: Strategy, cost: CostModel = None, risk: RiskConfig = None,
-               pause: bool = False):
-        """`closed` = solo velas CERRADAS. Devuelve el resultado del motor con la posición abierta."""
+               pause: bool = False, block_new: bool = False):
+        """`closed` = solo velas CERRADAS. Devuelve el resultado del motor con la posición abierta.
+        `pause` (noticias): el bot queda sin posición. `block_new` (gestor de portafolio): NO abre posiciones nuevas,
+        pero una posición ya abierta sigue su curso (la señal solo se mantiene si venía de la barra anterior)."""
         st = self.state
         if st["start"] is None:
             st["start"] = closed.index[-1].isoformat()
@@ -53,11 +55,15 @@ class PaperSession:
         live = strategy.generate(closed)
         table = live.copy()
         table.loc[table.index < start_ts, "signal"] = 0          # la sesión arranca siempre sin posición
+        prev_sig = 0
         for ts in closed.index[closed.index >= start_ts]:
             key = ts.isoformat()
             if key not in st["signals"]:                       # barra nueva: se congela con las flags de ahora
                 sig0 = 0 if pause else int(live.loc[ts, "signal"])        # pausa por noticias: queda sin posición
+                if block_new and sig0 != 0 and sig0 != prev_sig:
+                    sig0 = 0                                   # entrada nueva frenada por el portafolio
                 st["signals"][key] = [sig0, float(live.loc[ts, "stop_dist"])]
+            prev_sig = st["signals"][key][0]
             sig, sd = st["signals"][key]
             table.loc[ts, ["signal", "stop_dist"]] = [sig, sd]
         self._save()

@@ -77,6 +77,12 @@ def status_payload(state: dict, bundle: dict | None) -> dict:
         gl = abs(float(closed.loc[closed["pnl"] <= 0, "pnl"].sum()))
         out["profit_factor"] = float(closed.loc[closed["pnl"] > 0, "pnl"].sum() / gl) if gl else None
         out["max_dd"] = float((closed["equity_after"] / closed["equity_after"].cummax() - 1).min())
+    eq_safe = eq if eq > 0 else 1.0
+    out["exposure"] = float(sum(float(p["size"]) for p in state["positions"].values()) / eq_safe)
+    out["assets"] = {s: float(p["size"]) / eq_safe for s, p in state["positions"].items()}
+    out["overlays"] = state.get("overlays")
+    out["filters"] = state.get("filters")
+    out["gate"] = state.get("gate")
     if bundle:
         out["model"] = {"trained_at": bundle.get("trained_at"), "threshold": bundle.get("threshold"),
                         "n_train": bundle.get("n_train")}
@@ -146,6 +152,9 @@ class FileStore:
     def put_status(self, name, data):
         pass
 
+    def get_gate(self):
+        return None            # sin nube no hay gestor de portafolio: el bot opera normal
+
 
 class FirestoreStore:
     """Estado y modelo en Firestore + publicación para el panel. Requiere GOOGLE_APPLICATION_CREDENTIALS."""
@@ -191,6 +200,14 @@ class FirestoreStore:
 
     def put_status(self, name, data):
         self.db.collection("breakout_status").document(name).set({**data, "updated": time.time()})
+
+    def get_gate(self):
+        """Compuerta del gestor de portafolio (portfolio_status/gate). Si falla la lectura, el bot opera normal."""
+        try:
+            return self._get("portfolio_status", "gate")
+        except Exception as e:
+            print(f"[portafolio] no se pudo leer la compuerta ({type(e).__name__}); opero normal")
+            return None
 
     def publish(self, state, bundle, full=True):
         """Siempre escribe el estado y la validación (latido). `full` además reescribe la curva de equity y los trades:

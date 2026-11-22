@@ -1,0 +1,5 @@
+# Dependencias del ciclo de operación en GitHub Actions (ops_bot.py run --cloud)
+numpy>=1.26
+pandas>=2.2
+requests>=2.31
+firebase-admin>=6.5
