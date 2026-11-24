@@ -157,6 +157,11 @@ def live(a):
                 sink.trade(t); sent_tr.add(key)
         m, rk, op = res["metrics"], res["risk"], res["open"]
         card = scorecard(res, closed, pd.Timestamp(session.state["start"]))
+        try:                                                                 # «Por qué no opera»: nunca debe romper el ciclo
+            from .why import explain as why_explain
+            why = why_explain(closed, build(a, closed, enabled=flags), op, sent["pause"], rk["killed"], allow, gate_why if not allow else "")
+        except Exception as e:
+            why = None; print("[why] no se pudo explicar:", type(e).__name__, str(e)[:100])
         eq_now = float(eq.iloc[-1])
         sym_key = a.symbol.replace("/", "")
         expo = abs(float(op["qty"]) * float(op["entry"])) / eq_now if op and eq_now > 0 else 0.0
@@ -164,7 +169,7 @@ def live(a):
                     max_drawdown=m["max_drawdown"], trades=m["trades"], killed=rk["killed"], kill_reason=rk["kill_reason"],
                     halted_today=rk["halted_today"], position=op, scorecard=card, sentiment=sent,
                     equity0=float(session.state["equity0"]), exposure=expo, assets={sym_key: expo} if expo else {},
-                    gate={"allow": allow, "reason": gate_why})))
+                    gate={"allow": allow, "reason": gate_why}, why=why)))
         try:                                                                 # Telegram: nunca debe romper el ciclo
             tgs = session.state.setdefault("tg", {})
             nflags = sink.strategy_flags(list(DEFAULT_FLAGS), defaults=DEFAULT_FLAGS)

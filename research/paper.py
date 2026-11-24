@@ -102,6 +102,14 @@ def _count(state: dict, key: str, n: int = 1) -> None:
     f[key] = f.get(key, 0) + n
 
 
+def _act(state: dict, key: str, ts=None) -> None:
+    """Contadores de lo que hizo el bot con cada señal (alimentan «Por qué no opera»). Separados de `filters`."""
+    a = state.setdefault("activity", {})
+    a[key] = a.get(key, 0) + 1
+    if key == "signals" and ts is not None:
+        a["last_signal"] = str(ts)
+
+
 def advance(state: dict, feats: dict, bundle: dict, last_closed_ts, max_positions: int = 3,
             min_notional: float = 5.0, risk_per_trade: float = 0.02, overlays: Overlays | None = None,
             allow_new: bool = True) -> int:
@@ -158,19 +166,25 @@ def advance(state: dict, feats: dict, bundle: dict, last_closed_ts, max_position
             x = o.iloc[i][FEATURE_COLUMNS]
             if x.isna().any() or not np.isfinite(o["atr"].iloc[i]) or o["atr"].iloc[i] <= 0:
                 continue
+            _act(state, "signals", ts)
             if not allow_new:
                 _count(state, "halted")
+                _act(state, "blocked_gate")
                 continue
             if not ctx.allows(ts):
                 _count(state, "regime")
+                _act(state, "blocked_regime")
                 continue
             if i + 1 >= len(o):
                 return done            # aún no existe la vela siguiente: reintentar en la próxima ejecución
             pr = float(model.predict_proba(pd.DataFrame([x.to_numpy()], columns=FEATURE_COLUMNS))[0, 1])
             if pr >= th:
                 cands.append((pr, sym, i))
+            else:
+                _act(state, "rejected_model")
         for pr, sym, i in sorted(cands, reverse=True):
             if len(state["positions"]) >= max_positions:
+                _act(state, "skipped_slots")
                 break
             o = feats[sym]
             entry = float(o["open"].iloc[i + 1]) * (1 + p.slippage)
@@ -183,10 +197,12 @@ def advance(state: dict, feats: dict, bundle: dict, last_closed_ts, max_position
             size = state["equity"] * f
             if size < min_notional:
                 state["log"].append(f"{ts} {sym}: señal omitida, tamaño {size:.2f} < mínimo {min_notional}")
+                _act(state, "skipped_min_notional")
                 continue
             state["positions"][sym] = {"entry_ts": str(o.index[i + 1]), "entry": entry, "stop": stop,
                                        "target": target, "size": size, "p": pr, "bars_done": 0,
                                        "risk_mult": round(mult, 4)}
+            _act(state, "opened")
         state["last_ts"] = str(ts)
         done += 1
     state["log"] = state["log"][-200:]
@@ -300,6 +316,11 @@ def run_once(capital: float = 25.0, max_positions: int = 3, min_notional: float 
     n_open, n_closed = len(state["positions"]), len(state["closed"])
     n = advance(state, feats, bundle, last_closed, max_positions=max_positions,
                 min_notional=min_notional, risk_per_trade=risk_per_trade, overlays=ov, allow_new=allow)
+    try:                                              # «Por qué no opera»: nunca debe romper el ciclo
+        from .why import explain
+        state["why"] = explain(feats, last_closed, state, ov.regime is not None, allow, why if not allow else "")
+    except Exception as e:
+        print(f"[why] no se pudo explicar: {type(e).__name__}: {str(e)[:100]}")
     store.save_state(state)
     store.publish(state, bundle, full=nuevo or len(state["closed"]) != n_closed)
     ev = notify(state, store, tg)

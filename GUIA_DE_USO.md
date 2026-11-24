@@ -271,6 +271,13 @@ Detalle y números en `reports/INFORME_MEJORAS.md`. Lo importante:
    configuración (`reports/baseline_breakout.json`) y te avisa por Telegram si se desvía.
 3. *Salud*: avisa si un bot lleva > 6 h sin escribir (cron saltado) o si Breakout lleva > 8 h de retraso en velas (datos pegados).
 
+**«Por qué no opera»** (Panel → Breakout 4h, y una línea en Resumen y en Richy)
+- Explica con datos de la última vela por qué el bot está quieto: BTC frente a su media de 200 días, y por cada par qué tan lejos
+  está de romper su máximo de 48 velas y de su EMA200. Muestra también qué hizo con las señales (vistas, bloqueadas por régimen o
+  por el portafolio, descartadas por el modelo, abiertas). Los contadores empiezan a contar desde esta versión.
+- El **resumen diario de Telegram** (12:00 UTC, interruptor «Resumen diario») ahora incluye esa explicación.
+- En mercado bajista es normal que no haya operaciones: ambos bots son de tendencia y solo compran.
+
 **Interruptores en el panel** (pestaña Richy → Estrategias; se guardan en Firestore y los bots los leen en su siguiente ciclo)
 - *Breakout 4h: filtro de régimen* — apágalo y vuelve al comportamiento anterior.
 - *Portafolio: frenar entradas* — apágalo y el gestor solo observa y avisa, sin frenar a los bots.
