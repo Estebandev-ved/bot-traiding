@@ -54,8 +54,14 @@ def breakout_daily(state: dict) -> str:
     wins = sum(1 for c in closed if float(c["net_ret"]) > 0)
     pos = ", ".join(state.get("positions", {})) or "ninguna"
     wr = f"{wins / len(closed) * 100:.0f}%" if closed else "—"
+    why = (state.get("why") or {}).get("text")
+    why_line = f"\n💡 <b>Por qué {'está quieto' if not state.get('positions') else 'opera'}:</b> {e(why)}" if why else ""
+    a = state.get("activity") or {}
+    act_line = (f"\nSeñales vistas {a.get('signals', 0)} · bloqueadas por régimen {a.get('blocked_regime', 0)} · "
+                f"descartadas por el modelo {a.get('rejected_model', 0)} · abiertas {a.get('opened', 0)}") if a.get("signals") else \
+        ("\nSeñales de ruptura vistas: 0" if why else "")
     return (f"📊 <b>Breakout 4h · resumen diario</b>\nEquity ${num(eq)} ({pct(eq / cap0 - 1)} desde ${num(cap0)})\n"
-            f"Trades cerrados {len(closed)}/100 · acierto {wr}\nPosiciones abiertas: {e(pos)}\n{PAPER}")
+            f"Trades cerrados {len(closed)}/100 · acierto {wr}\nPosiciones abiertas: {e(pos)}{why_line}{act_line}\n{PAPER}")
 
 
 # ------------------------------------------------------------------ Richy

@@ -199,6 +199,7 @@ input[type=range]{accent-color:var(--ac);width:140px}
   <section class="view" id="v-bo" role="tabpanel">
     <div class="sec">Estrategia «Breakout 4h» · paper trading (sin dinero, precios reales)</div>
     <div class="card" id="bo-val"></div>
+    <div class="card" id="bo-why" style="margin-top:10px"></div>
     <div id="bo-hb"></div>
     <div class="grid kpis" id="bo-kpis"></div>
     <div class="card" id="bo-prog"></div>
@@ -662,6 +663,7 @@ function renderHome() {
     ${spark(state.equity.slice(-80).map(x => x.v), (s.ret || 0) >= 0)}
     <div class="lst"><div class="it"><span class="mut">Posición</span><span class="g">${p ? `<span class="tag ${p.side > 0 ? "l" : "s"}">${p.side > 0 ? "LONG" : "SHORT"}</span> entrada ${fmt(p.entry)} · stop ${fmt(p.stop)}` : "Sin posición abierta"}</span></div>
       <div class="it"><span class="mut">Operaciones</span><span class="g">${state.trades.length} · acierto ${fmt((s.win || 0) * 100)}% · caída máx. ${pc(s.mdd || 0)}</span></div>
+      ${st.why?.text ? `<div class="it"><span class="mut">¿Por qué no opera?</span><span class="g">${esc(st.why.text)}</span></div>` : ""}
       <div class="it"><span class="mut">¿Voy bien?</span><span class="g">${sc ? esc(sc.verdict) : "Esperando el primer ciclo…"}</span></div></div>`);
   const bs = state.bo.status, bv = state.bo.validation, T = bs.target_trades || 100, n = bs.n_closed || 0;
   put("#h-bo", `<h4>Breakout 4h · 5 pares <button class="btn" data-go="bo">Detalle →</button></h4>
@@ -670,6 +672,7 @@ function renderHome() {
     ${spark(state.bo.equity.slice(-80).map(x => x.v), (bs.ret || 0) >= 0)}
     <div class="bar" title="${n} de ${T}"><i style="width:${Math.min(100, n / T * 100)}%"></i></div>
     <div class="lst"><div class="it"><span class="mut">Progreso</span><span class="g">${n}/${T} trades en vivo · abiertas ${bs.n_open || 0}</span></div>
+      ${bs.why?.text ? `<div class="it"><span class="mut">¿Por qué no opera?</span><span class="g">${esc(bs.why.text)}</span></div>` : ""}
       <div class="it"><span class="mut">Validación</span><span class="g">${bv && bv.holdout ? `último año <span class="${cls(bv.holdout.ret)}">${pc(bv.holdout.ret)}</span> · diseño <span class="${cls(bv.design?.ret)}">${pc(bv.design?.ret)}</span>` : "sin datos"} <span class="tag w">No confirmada</span></span></div></div>`);
   const fng = state.fng, c = countNews(), f = state.funding || {};
   put("#h-market", `<h4>Mercado <button class="btn" data-go="news">Noticias →</button></h4><div class="gauge">${fng ? gauge(fng.value) : ""}
@@ -696,8 +699,8 @@ function renderRichy() {
     ["trend", "Retorno", pc(s.ret || 0), "acumulado", cls(s.ret || 0)], ["pulse", "Drawdown máx.", pc(s.mdd || 0), "peor caída", s.mdd ? "neg" : ""],
     ["scale", "Sharpe", fmt(s.sharpe || 0), "ganancia vs. riesgo (anualizado)", ""], ["target", "Win rate", fmt((s.win || 0) * 100) + "%", state.trades.length + " operaciones", ""]].map(kpi).join(""));
   const sc = st.scorecard;
-  put("#score", sc ? `<div class="verdict ${esc(sc.state)}">${esc(sc.verdict)}</div>` + sc.checks.map(c => `<div class="chk ${esc(c.state)}"><i></i><b>${esc(c.label)}</b><span class="t">${esc(c.text)}</span></div>`).join("")
-    : `<span class="mut">Esperando el primer ciclo del bot…</span>`);
+  put("#score", (st.why?.text ? `<div class="mut" style="font-size:.84rem;margin-bottom:8px">💡 ${esc(st.why.text)}</div>` : "") + (sc ? `<div class="verdict ${esc(sc.state)}">${esc(sc.verdict)}</div>` + sc.checks.map(c => `<div class="chk ${esc(c.state)}"><i></i><b>${esc(c.label)}</b><span class="t">${esc(c.text)}</span></div>`).join("")
+    : `<span class="mut">Esperando el primer ciclo del bot…</span>`));
   const p = st.position;
   put("#pos", p ? `<div class="poscard open"><b><span class="tag ${p.side > 0 ? "l" : "s"}">${p.side > 0 ? "LONG" : "SHORT"}</span> posición abierta</b>
     <span class="f">Cantidad <span>${fmt(p.qty)}</span></span><span class="f">Entrada <span>${fmt(p.entry)}</span></span><span class="f">Stop <span>${fmt(p.stop)}</span></span><span class="f">Desde <span>${when(p.since)}</span></span></div>`
@@ -755,6 +758,28 @@ function renderPort() {
         <div class="it"><span class="mut">Aciertos (vivo / backtest)</span><span class="g mono">${fmt(d.win_rate * 100)}% / ${fmt(d.base_win_rate * 100)}%</span></div></div>` : ""}` : ""}
     <div class="lst" style="margin-top:8px">${hb("richy_heartbeat", "Richy · ciclos")}${hb("breakout_heartbeat", "Breakout · ciclos")}${hb("breakout_bars", "Breakout · velas" + (lag != null ? ` (${fmt(lag)} h de retraso)` : ""))}</div>
     <div class="mut" style="font-size:.74rem;margin-top:8px">Breakout 4h: ${ov?.text ? esc(ov.text) : "sin información de overlays"}${fl.regime ? ` · régimen bloqueó ${fl.regime} señales` : ""}${fl.halted ? ` · portafolio frenó ${fl.halted}` : ""}</div>`);
+}
+
+function renderWhy() {
+  const bo = state.bo.status || {}, w = bo.why, a = bo.activity || {};
+  if (!w) {
+    put("#bo-why", `<h4>Por qué no opera</h4><span class="mut">Aparecerá en el próximo ciclo del bot (cada hora).</span>`);
+    return;
+  }
+  const ST = {open: ["Operando", "l"], regime: ["Filtro de régimen", "w"], no_signal: ["Sin señales", "n"], signal: ["Hay señal", "l"], halted: ["Portafolio en pausa", "w"]};
+  const [lbl, tcls] = ST[w.status] || ST.no_signal, r = w.regime;
+  const num = x => (+x).toLocaleString("es", {maximumFractionDigits: x < 10 ? 3 : 0});
+  const rows = (w.pairs || []).map(p => `<div class="it"><span class="mut" style="min-width:48px">${esc(p.symbol.replace("USDT", ""))}</span>
+    <span class="g mono">${num(p.price)} · ruptura ${num(p.breakout_level)} <span class="${p.signal ? "pos" : "mut"}">(${p.signal ? "EN RUPTURA" : pc(p.gap_breakout, 1)})</span> · EMA200 <span class="${cls(p.gap_ema200)}">${pc(p.gap_ema200, 1)}</span></span>
+    <span class="tag ${p.signal ? "l" : p.above_ema200 ? "n" : "s"}">${p.signal ? "señal" : p.above_ema200 ? "sobre EMA200" : "bajo EMA200"}</span></div>`).join("");
+  put("#bo-why", `<h4>Por qué no opera <span class="tag ${tcls}">${esc(lbl)}</span></h4>
+    <div style="font-size:.9rem;color:var(--strong);line-height:1.5">${esc(w.text)}</div>
+    ${r && r.ready ? `<div class="lst" style="margin-top:8px"><div class="it"><span class="mut">BTC vs su media de 200 días</span>
+      <span class="g mono">$${num(r.btc)} frente a $${num(r.ema200d)} <span class="${r.on ? "pos" : "neg"}">(${pc(r.gap, 1)}) · ${r.on ? "mercado alcista: puede comprar" : "mercado bajista: no compra"}</span></span></div></div>` : ""}
+    <div class="mut" style="font-size:.78rem;margin:10px 0 2px">Qué falta para que entre cada par (necesita romper su máximo de 48 velas y estar sobre su EMA200)</div>
+    <div class="lst">${rows}</div>
+    <div class="lst" style="margin-top:8px"><div class="it"><span class="mut">Qué hizo con las señales</span><span class="g mono">${a.signals ? `vistas ${a.signals} · bloqueadas por régimen ${a.blocked_regime || 0} · por el portafolio ${a.blocked_gate || 0} · descartadas por el modelo ${a.rejected_model || 0} · abiertas ${a.opened || 0}` : "ninguna señal de ruptura registrada"}</span></div></div>
+    <div class="mut" style="font-size:.72rem;margin-top:8px">Última vela analizada: ${when(w.last_bar)} UTC · el filtro de régimen ${w.overlays_on ? "está encendido" : "está apagado"} (Richy → Estrategias).</div>`);
 }
 
 function renderBO() {
@@ -850,7 +875,7 @@ function renderCfg() {
    Render global y navegación
    ===================================================================================================== */
 const safe = fn => { try { fn(); } catch (e) { console.error(fn.name, e); } };
-function render() { safe(alerts); [renderHeader, renderBanners, renderHome, renderPort, renderRichy, renderBO, renderOps, renderNews, renderCfg].forEach(safe); }
+function render() { safe(alerts); [renderHeader, renderBanners, renderHome, renderPort, renderWhy, renderRichy, renderBO, renderOps, renderNews, renderCfg].forEach(safe); }
 let raf = 0; const schedule = () => { raf = raf || requestAnimationFrame(() => { raf = 0; render(); }); };
 
 const TABS = ["home", "richy", "bo", "ops", "news", "cfg", "guide"];
@@ -941,7 +966,14 @@ function demo() {
       warnings: [], config: {max_daily_loss: 0.03, max_drawdown: 0.15}, updated: now - 1200},
     drift: {state: "wait", n: 7, text: "Aún 7 de 20 trades: muy pronto para comparar con el backtest."},
     health: {flags: {richy_heartbeat: false, breakout_heartbeat: false, breakout_bars: false}, bar_lag_h: 0}};
-  state.bo.status = Object.assign(state.bo.status || {}, {overlays: {text: "régimen=btc_ema200d"}, filters: {regime: 12}});
+  state.bo.status = Object.assign(state.bo.status || {}, {overlays: {text: "régimen=btc_ema200d"}, filters: {regime: 12},
+    activity: {signals: 8, blocked_regime: 5, rejected_model: 2, opened: 1},
+    why: {status: "regime", overlays_on: true, last_bar: "2026-11-24T08:00:00+00:00",
+      text: "Sin entradas: BTC está -18,3% bajo su media de 200 días ($61.271 frente a $75.010); el filtro de régimen no deja comprar en mercado bajista. Aun sin el filtro, los 5 pares están bajo su EMA200 de 4 h y a 9–12% de su máximo de 48 velas: no hay ruptura posible.",
+      regime: {ready: true, btc: 61271, ema200d: 75010, gap: -0.183, on: false},
+      pairs: [["BTCUSDT", 59722, 65696, -.091, -.153], ["ETHUSDT", 1678, 1867, -.101, -.174], ["BNBUSDT", 546, 599.4, -.089, -.152], ["SOLUSDT", 69.05, 78.48, -.12, -.182], ["XRPUSDT", .91, 1.03, -.109, -.169]]
+        .map(([symbol, price, breakout_level, gap_breakout, gap_ema200]) => ({symbol, price, breakout_level, gap_breakout, gap_ema200, above_ema200: false, signal: false}))}});
+  state.status.why = {status: "no_signal", text: "Sin entradas: la EMA20 (61.204) está bajo la EMA50 (63.870): tendencia bajista, y Richy solo opera en largo."};
   $("#demo").textContent = "MODO DEMO · datos de ejemplo"; render();
 }
 const gate = (msg = "", denied = false) => { $("#gate").style.display = "grid"; $("#gmsg").textContent = msg; $("#gswitch").style.display = denied ? "inline" : "none"; $("#gbtn").disabled = false; };

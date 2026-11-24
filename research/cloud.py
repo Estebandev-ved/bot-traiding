@@ -83,6 +83,8 @@ def status_payload(state: dict, bundle: dict | None) -> dict:
     out["overlays"] = state.get("overlays")
     out["filters"] = state.get("filters")
     out["gate"] = state.get("gate")
+    out["activity"] = state.get("activity")
+    out["why"] = state.get("why")
     if bundle:
         out["model"] = {"trained_at": bundle.get("trained_at"), "threshold": bundle.get("threshold"),
                         "n_train": bundle.get("n_train")}
