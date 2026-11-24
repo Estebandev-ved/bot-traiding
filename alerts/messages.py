@@ -97,3 +97,32 @@ def stalled(name: str, hours: float, url: str | None = None) -> str:
 
 def recovered(name: str) -> str:
     return f"✅ <b>{e(name)}</b> volvió a la normalidad."
+
+
+# ------------------------------------------------------------------ portafolio, deriva y salud de ciclos
+def portfolio_halt(reasons: list, index: float) -> str:
+    why = "\n".join(f"• {e(r)}" for r in reasons) or "• límite de riesgo combinado"
+    return (f"🛡️ <b>Portafolio · entradas nuevas en pausa</b>\n{why}\nÍndice combinado {float(index):.3f} (1.000 = inicio).\n"
+            f"Richy y Breakout 4h no abrirán posiciones nuevas; las abiertas siguen con sus stops.")
+
+
+def portfolio_resume(index: float) -> str:
+    return f"✅ <b>Portafolio</b> reanudado: los bots pueden abrir posiciones otra vez (índice {float(index):.3f})."
+
+
+def portfolio_warn(warnings: list) -> str:
+    return "⚠️ <b>Portafolio · aviso</b>\n" + "\n".join(f"• {e(w)}" for w in warnings)
+
+
+def drift_alert(bot: str, d: dict) -> str:
+    why = "\n".join(f"• {e(a)}" for a in d.get("alerts", [])) or "• desviación del backtest"
+    return (f"📉 <b>{e(bot)} · deriva frente al backtest</b>\n{why}\nTrades en vivo: {d.get('n', 0)}. "
+            f"No es una prueba, pero es la señal de revisar antes de confiar en el bot.\n{PAPER}")
+
+
+def cycle_lag(label: str, what: str, hours: float) -> str:
+    if what == "velas":
+        return (f"⏱️ <b>{e(label)} · velas atrasadas</b>\nSu última vela 4h procesada va {hours:.1f} h por detrás. "
+                f"Los ciclos escriben pero no avanzan (¿datos pegados?). Revisa GitHub → Actions.")
+    return (f"⏱️ <b>{e(label)} · ciclos saltados</b>\nLleva {hours:.1f} h sin escribir (GitHub se saltó ejecuciones). "
+            f"Si sigue así revisa GitHub → Actions.")

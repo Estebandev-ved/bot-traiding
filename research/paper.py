@@ -15,9 +15,21 @@ import pandas as pd
 
 from .engine import Params
 from .features import FEATURE_COLUMNS, build_features, signal_breakout
+from .overlays import Context, Overlays
 from .walkforward import _choose_threshold, build_dataset, make_model
 
-SYMS = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"]
+# Universo: los 5 pares validados. Ampliarlo a 10 EMPEORÓ el resultado fuera de muestra
+# (reports/INFORME_MEJORAS.md), así que solo se cambia a propósito con BREAKOUT_SYMS="BTCUSDT,ETHUSDT,...".
+DEFAULT_SYMS = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"]
+
+
+def symbols() -> list[str]:
+    raw = os.getenv("BREAKOUT_SYMS", "").strip()
+    out = [x.strip().upper() for x in raw.split(",") if x.strip()]
+    return out or list(DEFAULT_SYMS)
+
+
+SYMS = symbols()
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODEL_PATH = os.path.join(ROOT, "models", "breakout_gbm.joblib")
 STATE_PATH = os.path.join(ROOT, "breakout_state.json")
@@ -81,13 +93,22 @@ def _close_position(state: dict, sym: str, ts, exit_px: float, reason: str, p: P
     state["equity"] += pnl
     state["closed"].append({"symbol": sym, "entry_time": pos["entry_ts"], "exit_time": str(ts),
                             "entry": pos["entry"], "exit": exit_px, "reason": reason, "size": pos["size"],
-                            "net_ret": net, "pnl": pnl, "equity_after": state["equity"], "p": pos["p"]})
+                            "net_ret": net, "pnl": pnl, "equity_after": state["equity"], "p": pos["p"],
+                            "risk_mult": pos.get("risk_mult", 1.0)})
+
+
+def _count(state: dict, key: str, n: int = 1) -> None:
+    f = state.setdefault("filters", {})
+    f[key] = f.get(key, 0) + n
 
 
 def advance(state: dict, feats: dict, bundle: dict, last_closed_ts, max_positions: int = 3,
-            min_notional: float = 5.0, risk_per_trade: float = 0.02) -> int:
+            min_notional: float = 5.0, risk_per_trade: float = 0.02, overlays: Overlays | None = None,
+            allow_new: bool = True) -> int:
     """Procesa en orden todas las velas cerradas nuevas. Devuelve cuántas velas procesó.
-    `feats[sym]` puede incluir UNA vela final aún en formación: solo se usa su `open` para entrar."""
+    `feats[sym]` puede incluir UNA vela final aún en formación: solo se usa su `open` para entrar.
+    `overlays`: filtro de régimen + tamaño por volatilidad/correlación (misma lógica que el laboratorio).
+    `allow_new=False`: el gestor de portafolio frenó las entradas nuevas (las posiciones abiertas se siguen gestionando)."""
     p = Params(**{k: v for k, v in bundle["params"].items() if k != "extra"})
     p.risk_per_trade = risk_per_trade
     th, model = bundle["threshold"], bundle["model"]
@@ -98,6 +119,9 @@ def advance(state: dict, feats: dict, bundle: dict, last_closed_ts, max_position
     start = pd.Timestamp(state["last_ts"]) if state["last_ts"] else None
     todo = [t for t in index if t <= last_closed and (start is None or t > start)]
     sigs_cache = {s: signal_breakout(o).fillna(False).to_numpy(dtype=bool, copy=True) for s, o in feats.items()}
+    ctx = Context(overlays, feats)
+    if ctx.missing_regime:
+        state["log"].append("filtro de régimen sin BTCUSDT en los datos: desactivado")
     done = 0
     for ts in todo:
         # 1) gestionar posiciones abiertas con la vela ts
@@ -134,6 +158,12 @@ def advance(state: dict, feats: dict, bundle: dict, last_closed_ts, max_position
             x = o.iloc[i][FEATURE_COLUMNS]
             if x.isna().any() or not np.isfinite(o["atr"].iloc[i]) or o["atr"].iloc[i] <= 0:
                 continue
+            if not allow_new:
+                _count(state, "halted")
+                continue
+            if not ctx.allows(ts):
+                _count(state, "regime")
+                continue
             if i + 1 >= len(o):
                 return done            # aún no existe la vela siguiente: reintentar en la próxima ejecución
             pr = float(model.predict_proba(pd.DataFrame([x.to_numpy()], columns=FEATURE_COLUMNS))[0, 1])
@@ -148,13 +178,15 @@ def advance(state: dict, feats: dict, bundle: dict, last_closed_ts, max_position
             stop, target = entry - p.sl_atr * atr, entry + p.tp_atr * atr
             if stop <= 0:
                 continue
-            f = min(p.risk_per_trade / ((entry - stop) / entry), 1.0 / max_positions)
+            mult = ctx.size_mult(o.index[i], sym, float(o["atr_ratio"].iloc[i]), list(state["positions"]))
+            f = min(p.risk_per_trade / ((entry - stop) / entry), 1.0 / max_positions) * mult   # DESPUÉS del tope por posición
             size = state["equity"] * f
             if size < min_notional:
                 state["log"].append(f"{ts} {sym}: señal omitida, tamaño {size:.2f} < mínimo {min_notional}")
                 continue
             state["positions"][sym] = {"entry_ts": str(o.index[i + 1]), "entry": entry, "stop": stop,
-                                       "target": target, "size": size, "p": pr, "bars_done": 0}
+                                       "target": target, "size": size, "p": pr, "bars_done": 0,
+                                       "risk_mult": round(mult, 4)}
         state["last_ts"] = str(ts)
         done += 1
     state["log"] = state["log"][-200:]
@@ -217,10 +249,33 @@ def notify(state: dict, store, tg=None) -> dict:
         return {"sent": 0, "failed": 0}
 
 
+OVERLAYS_FLAG = "overlays"
+
+
+def overlays_from_env(flag_on: bool = True) -> Overlays:
+    """Overlays por defecto ENCENDIDOS (reducen la caída máxima; ver reports/INFORME_MEJORAS.md).
+    Se apagan desde el panel (strategies/overlays) o con BREAKOUT_OVERLAYS=off, sin tocar código."""
+    env = os.getenv("BREAKOUT_OVERLAYS", "").strip().lower()
+    if env in ("off", "0", "false", "no") or not flag_on:
+        return Overlays.off()
+    return Overlays()
+
+
+def _record_config(state: dict, ov: Overlays, now: pd.Timestamp) -> None:
+    """Deja constancia de CUÁNDO cambió la configuración: el historial en vivo solo es comparable dentro de un mismo tramo."""
+    cfg = ov.to_dict()
+    hist = state.setdefault("overlay_history", [])
+    if not hist or hist[-1]["config"] != cfg:
+        hist.append({"at": str(now), "config": cfg, "text": ov.describe()})
+        state["overlay_history"] = hist[-20:]
+    state["overlays"] = {"config": cfg, "active": ov.active, "text": ov.describe()}
+
+
 def run_once(capital: float = 25.0, max_positions: int = 3, min_notional: float = 5.0,
              risk_per_trade: float = 0.02, store=None, tg=None) -> dict:
     """Un ciclo completo: modelo -> datos en vivo -> procesar velas 4h nuevas -> guardar y publicar.
     Lo usan la CLI, el dashboard de Streamlit y GitHub Actions (con store=FirestoreStore)."""
+    from ops.portfolio import gate_allows
     from .live import fetch_live_4h
     store = store or default_store()
     bundle, retrained = ensure_bundle(store)
@@ -228,17 +283,26 @@ def run_once(capital: float = 25.0, max_positions: int = 3, min_notional: float 
     frames, last_closed = fetch_live_4h(SYMS)
     feats = make_features(frames)
     nuevo = state["last_ts"] is None
+    now = pd.Timestamp.now(tz="UTC")
     if nuevo:
         state["last_ts"] = str(last_closed - BAR)   # el historial empieza AHORA
-        state["started"] = str(pd.Timestamp.now(tz="UTC"))
+        state["started"] = str(now)
         from alerts.breakout import new_notif
         state["notif"] = new_notif(state, fresh=True)   # sesión nueva: todo lo que ocurra se avisa
+    flags = store.strategy_flags([OVERLAYS_FLAG], defaults={OVERLAYS_FLAG: True})
+    ov = overlays_from_env(flags.get(OVERLAYS_FLAG, True))
+    _record_config(state, ov, now)
+    gate = store.get_gate() if hasattr(store, "get_gate") else None
+    allow, why = gate_allows(gate, now.timestamp())
+    state["gate"] = {"allow": allow, "reason": why, "checked": str(now)}
+    if not allow:
+        print(f"[portafolio] entradas nuevas en pausa: {why}")
     n_open, n_closed = len(state["positions"]), len(state["closed"])
     n = advance(state, feats, bundle, last_closed, max_positions=max_positions,
-                min_notional=min_notional, risk_per_trade=risk_per_trade)
+                min_notional=min_notional, risk_per_trade=risk_per_trade, overlays=ov, allow_new=allow)
     store.save_state(state)
     store.publish(state, bundle, full=nuevo or len(state["closed"]) != n_closed)
     ev = notify(state, store, tg)
     return {"telegram": ev, "nuevo": nuevo, "velas": n, "abiertas": (n_open, len(state["positions"])),
             "cerradas": (n_closed, len(state["closed"])), "equity": state["equity"], "state": state,
-            "reentrenado": retrained, "almacen": store.name}
+            "reentrenado": retrained, "almacen": store.name, "overlays": ov.describe(), "gate": (allow, why)}

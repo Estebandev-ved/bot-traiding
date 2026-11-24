@@ -176,6 +176,7 @@ input[type=range]{accent-color:var(--ac);width:140px}
     <div class="grid two" style="margin-top:14px"><div class="card" id="h-richy"></div><div class="card" id="h-bo"></div></div>
     <div class="grid two" style="margin-top:10px"><div class="card" id="h-market"></div><div class="card" id="h-news"></div></div>
     <div class="grid two" style="margin-top:10px"><div class="card" id="h-activity"></div><div class="card" id="h-sys"></div></div>
+    <div class="grid two" style="margin-top:10px"><div class="card" id="h-port"></div><div class="card" id="h-drift"></div></div>
   </section>
 
   <!-- ================= RICHY ================= -->
@@ -374,8 +375,11 @@ const kpi = ([i, l, v, s, c]) => `<div class="card k"><div class="l">${ico(i)}${
 const NOTIFY = {notify_open: "Avisar al abrir una posición", notify_close: "Avisar al cerrar una operación", notify_daily: "Resumen diario (12:00 UTC)",
   notify_news: "Noticias de riesgo", notify_alerts: "Alertas del sistema (kill switch, pausa, bot detenido)"};
 const LABELS = {trend: ["Seguir tendencia", "EMA + ADX, stop por ATR"], meanrev: ["Reversión a la media", "Z-score, rango"],
-  grid: ["Grid trading", "Aún no se ejecuta en vivo"], funding: ["Arbitraje de funding", "Simulación; hoy rinde poco (ver Mercado)"]};
-const fresh = () => ({equity: [], trades: [], status: {}, funding: {}, strats: {trend: true, meanrev: true, grid: false, funding: false},
+  grid: ["Grid trading", "Aún no se ejecuta en vivo"], funding: ["Arbitraje de funding", "Simulación; hoy rinde poco (ver Mercado)"],
+  overlays: ["Breakout 4h: filtro de régimen", "No abre posiciones si BTC está bajo su media de 200 días"],
+  portfolio_enforce: ["Portafolio: frenar entradas", "Pausa las entradas nuevas de ambos bots si el conjunto cae demasiado"]};
+const fresh = () => ({equity: [], trades: [], status: {}, funding: {}, strats: {trend: true, meanrev: true, grid: false, funding: false, overlays: true, portfolio_enforce: true},
+  port: {current: null, drift: null, health: null},
   bo: {status: {}, validation: null, equity: [], trades: []}, news: [], newsStatus: {}, fng: null, tg: {}});
 const state = Object.assign(fresh(), {online: navigator.onLine, mode: "live"});
 const flag = k => state.strats[k] !== false;
@@ -721,6 +725,38 @@ function renderRichy() {
 /* =====================================================================================================
    Breakout 4h
    ===================================================================================================== */
+function renderPort() {
+  const p = state.port.current, d = state.port.drift, hl = state.port.health, bo = state.bo.status || {};
+  if (!p) put("#h-port", `<h4>Portafolio</h4><span class="mut">Aún sin datos: aparece cuando corre el ciclo de operación (cada hora).</span>`);
+  else {
+    const halted = p.enforce !== false && p.allow_new === false;
+    put("#h-port", `<h4>Portafolio · Richy + Breakout 4h</h4>
+      <div class="mono ${halted ? "neg" : "pos"}" style="font-size:1.1rem">${halted ? "Entradas nuevas en pausa" : "Operando con normalidad"}</div>
+      <div class="lst">
+        <div class="it"><span class="mut">Índice combinado</span><span class="g mono">${p.index == null ? "—" : (+p.index).toFixed(3)} (${pc(p.index - 1)})</span></div>
+        <div class="it"><span class="mut">Caída desde el pico</span><span class="g mono ${cls(p.drawdown)}">${pc(p.drawdown)}</span></div>
+        <div class="it"><span class="mut">Resultado del día</span><span class="g mono ${cls(p.daily_pnl)}">${pc(p.daily_pnl)}</span></div>
+        <div class="it"><span class="mut">Exposición combinada</span><span class="g mono">${fmt((p.exposure || 0) * 100)}%</span></div>
+      </div>
+      ${(p.reasons || []).map(r => `<div class="neg" style="font-size:.8rem;margin-top:6px">${esc(r)}</div>`).join("")}
+      ${(p.warnings || []).map(w => `<div class="mut" style="font-size:.78rem;margin-top:4px">⚠ ${esc(w)}</div>`).join("")}
+      ${p.enforce === false ? `<div class="mut" style="font-size:.74rem;margin-top:6px">Modo observación: calcula y avisa, pero no frena a los bots.</div>` : ""}
+      <div class="mut" style="font-size:.72rem;margin-top:8px">Límites: pérdida diaria ${fmt((p.config?.max_daily_loss || 0) * 100)}% · caída ${fmt((p.config?.max_drawdown || 0) * 100)}% · actualizado ${ago(p.updated)}</div>`);
+  }
+  const ST = {ok: ["Rinde como el backtest", "pos"], wait: ["Muy pronto para comparar", "mut"], warn: ["Se desvía del backtest", "neg"], bad: ["Deriva fuerte frente al backtest", "neg"]};
+  const [dt, dc] = d ? (ST[d.state] || ST.wait) : ["Sin datos", "mut"];
+  const flags = hl?.flags || {}, lag = hl?.bar_lag_h;
+  const hb = (k, name) => `<div class="it"><span class="mut">${name}</span><span class="g ${flags[k] ? "neg" : "pos"}">${flags[k] ? "atrasado" : "al día"}</span></div>`;
+  const ov = bo.overlays, fl = bo.filters || {};
+  put("#h-drift", `<h4>Deriva y salud de los ciclos</h4>
+    <div class="mono ${dc}" style="font-size:1.05rem">${esc(dt)}</div>
+    ${d ? `<div class="mut" style="font-size:.8rem;margin-top:4px">${esc(d.text || "")}</div>
+      ${d.n >= 20 ? `<div class="lst"><div class="it"><span class="mut">Media por trade (vivo / backtest)</span><span class="g mono">${pc(d.mean)} / ${pc(d.base_mean)}</span></div>
+        <div class="it"><span class="mut">Aciertos (vivo / backtest)</span><span class="g mono">${fmt(d.win_rate * 100)}% / ${fmt(d.base_win_rate * 100)}%</span></div></div>` : ""}` : ""}
+    <div class="lst" style="margin-top:8px">${hb("richy_heartbeat", "Richy · ciclos")}${hb("breakout_heartbeat", "Breakout · ciclos")}${hb("breakout_bars", "Breakout · velas" + (lag != null ? ` (${fmt(lag)} h de retraso)` : ""))}</div>
+    <div class="mut" style="font-size:.74rem;margin-top:8px">Breakout 4h: ${ov?.text ? esc(ov.text) : "sin información de overlays"}${fl.regime ? ` · régimen bloqueó ${fl.regime} señales` : ""}${fl.halted ? ` · portafolio frenó ${fl.halted}` : ""}</div>`);
+}
+
 function renderBO() {
   const b = state.bo, st = b.status || {}, v = b.validation, n = st.n_closed || 0, T = st.target_trades || 100;
   const seg = (name, s) => s ? `<div class="chk"><b>${name}</b><span class="t"><span class="${cls(s.ret)}">${pc(s.ret)}</span> · Sharpe ${fmt(s.sharpe)} · caída máx. ${pc(s.dd)} · ${s.n} trades · comprar y mantener ${pc(s.bh)}</span></div>` : "";
@@ -814,7 +850,7 @@ function renderCfg() {
    Render global y navegación
    ===================================================================================================== */
 const safe = fn => { try { fn(); } catch (e) { console.error(fn.name, e); } };
-function render() { safe(alerts); [renderHeader, renderBanners, renderHome, renderRichy, renderBO, renderOps, renderNews, renderCfg].forEach(safe); }
+function render() { safe(alerts); [renderHeader, renderBanners, renderHome, renderPort, renderRichy, renderBO, renderOps, renderNews, renderCfg].forEach(safe); }
 let raf = 0; const schedule = () => { raf = raf || requestAnimationFrame(() => { raf = 0; render(); }); };
 
 const TABS = ["home", "richy", "bo", "ops", "news", "cfg", "guide"];
@@ -901,6 +937,11 @@ function demo() {
     decrypt: {name: "Decrypt", lang: "en", ok: false, count: 0, error: "HTTP 503"}, es: {name: "Cointelegraph ES", lang: "es", ok: true, count: 20}, cn: {name: "CriptoNoticias", lang: "es", ok: true, count: 18}}};
   state.fng = {value: 25, label: "Miedo extremo", prev: 31, history: [34, 36, 33, 29, 31, 31, 25].map((v, i) => ({t: now - (6 - i) * 86400, v}))};
   state.tg = {richy: {enabled: true, last_sent: now - 3600, last_error: null}, bo: {enabled: true, last_sent: now - 7200, last_error: null}, news: {enabled: true, last_sent: now - 5400, last_error: null}};
+  state.port = {current: {index: 1.012, drawdown: -0.018, daily_pnl: 0.002, exposure: 0.34, allow_new: true, enforce: true, reasons: [],
+      warnings: [], config: {max_daily_loss: 0.03, max_drawdown: 0.15}, updated: now - 1200},
+    drift: {state: "wait", n: 7, text: "Aún 7 de 20 trades: muy pronto para comparar con el backtest."},
+    health: {flags: {richy_heartbeat: false, breakout_heartbeat: false, breakout_bars: false}, bar_lag_h: 0}};
+  state.bo.status = Object.assign(state.bo.status || {}, {overlays: {text: "régimen=btc_ema200d"}, filters: {regime: 12}});
   $("#demo").textContent = "MODO DEMO · datos de ejemplo"; render();
 }
 const gate = (msg = "", denied = false) => { $("#gate").style.display = "grid"; $("#gmsg").textContent = msg; $("#gswitch").style.display = denied ? "inline" : "none"; $("#gbtn").disabled = false; };
@@ -941,6 +982,8 @@ async function live(cfgFb) {
       fs.onSnapshot(fs.collection(db, "strategies"), q => { q.docs.forEach(x => state.strats[x.id] = !!x.data().enabled); schedule(); }, deny),
       doc("breakout_status/current", d => state.bo.status = d || {}), doc("breakout_status/validation", d => state.bo.validation = d),
       doc("breakout_status/telegram", d => state.tg.bo = d),
+      doc("portfolio_status/current", d => state.port.current = d), doc("portfolio_status/drift", d => state.port.drift = d),
+      doc("portfolio_status/health", d => state.port.health = d),
       qry("breakout_equity", "t", 500, a => state.bo.equity = a), qry("breakout_trades", "exit_time", 100, a => state.bo.trades = a),
       qry("news", "ts", 80, a => state.news = a), doc("news_status/current", d => state.newsStatus = d || {}), doc("news_status/fng", d => state.fng = d),
       doc("news_status/telegram", d => state.tg.news = d),

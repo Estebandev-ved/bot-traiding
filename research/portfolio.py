@@ -11,10 +11,13 @@ import numpy as np
 import pandas as pd
 
 from .engine import Params, compute_metrics
+from .overlays import Context, Overlays
 
 
 def portfolio_backtest(frames: dict, candidates: pd.DataFrame, p: Params, start: str, end: str | None,
-                       initial: float = 1000.0, max_positions: int = 3, min_notional: float = 5.0) -> dict:
+                       initial: float = 1000.0, max_positions: int = 3, min_notional: float = 5.0,
+                       overlays: Overlays | None = None) -> dict:
+    """`overlays` (filtro de régimen + tamaño por volatilidad y correlación) usa la MISMA lógica que el paper trader."""
     s = pd.Timestamp(start, tz="UTC")
     e = pd.Timestamp(end, tz="UTC") if end else None
     index = None
@@ -26,8 +29,9 @@ def portfolio_backtest(frames: dict, candidates: pd.DataFrame, p: Params, start:
 
     cand = candidates.sort_values(["entry_time", "p"], ascending=[True, False])
     cand = cand[(cand["entry_time"] >= index[0]) & (cand["exit_time"] <= index[-1])]
+    ctx = Context(overlays, frames) if overlays is not None else Context(Overlays.off(), frames)
     taken, open_pos = [], []   # open_pos: dicts con entry_pos/exit_pos
-    skipped_min = 0
+    skipped_min = skipped_regime = 0
     for t in cand.itertuples(index=False):
         ep, xp = index.get_loc(t.entry_time), index.get_loc(t.exit_time)
         # una posición que sale DENTRO de la vela ep sigue ocupando su cupo al abrir esa vela (no se puede
@@ -35,8 +39,12 @@ def portfolio_backtest(frames: dict, candidates: pd.DataFrame, p: Params, start:
         open_pos = [q for q in open_pos if q["exit_pos"] >= ep]
         if len(open_pos) >= max_positions or any(q["symbol"] == t.symbol for q in open_pos):
             continue
+        if not ctx.allows(t.sig_time):
+            skipped_regime += 1
+            continue
         realized = initial + sum(q["pnl"] for q in taken if q["exit_pos"] < ep)
-        f = min(p.risk_per_trade / t.stop_frac, 1.0 / max_positions)
+        mult = ctx.size_mult(t.sig_time, t.symbol, getattr(t, "atr_ratio", np.nan), [q["symbol"] for q in open_pos])
+        f = min(p.risk_per_trade / t.stop_frac, 1.0 / max_positions) * mult   # el multiplicador va DESPUÉS del tope por posición
         size = realized * f
         if size < min_notional:
             skipped_min += 1
@@ -57,7 +65,7 @@ def portfolio_backtest(frames: dict, candidates: pd.DataFrame, p: Params, start:
             unreal[j] += q["size"] * (px[j] / entry_fill - 1)
     equity = pd.Series(initial + realized_arr + unreal, index=index)
     trades = pd.DataFrame(taken)
-    return {"equity": equity, "trades": trades, "skipped_min_notional": skipped_min,
+    return {"equity": equity, "trades": trades, "skipped_min_notional": skipped_min, "skipped_regime": skipped_regime,
             "metrics": compute_metrics(equity, trades, initial) if len(trades) else {"n_trades": 0}}
 
 

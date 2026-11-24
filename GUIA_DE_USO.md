@@ -11,6 +11,7 @@ cómo activarlo, cómo comprobar que corre, cómo recibir avisos por Telegram y 
 |---|---|---|
 | **Richy** (`richy/`) | Bot de tendencia en BTC/USDT 4h con gestión de riesgo, filtro de noticias y funding. Capital simulado de 10,000 USDT. | Panel → **Richy** |
 | **Breakout 4h** (`research/`, `paper_trader.py`) | Bot de ruptura de máximos en 5 pares (BTC, ETH, BNB, SOL, XRP) con filtro de aprendizaje automático. Capital simulado de 25 USDT, como tu cuenta real. | Panel → **Breakout 4h** |
+| **Portafolio y vigilancia** (`ops/`, `ops_bot.py`) | Cada hora junta a Richy y Breakout bajo un límite de riesgo común (pérdida diaria −3 %, caída −15 %), compara el paper con el backtest (deriva) y avisa si los ciclos se saltan. | Panel → **Resumen** (tarjetas Portafolio y Deriva) |
 | **Noticias** (`newsfeed/`, `news_bot.py`) | Cada hora descarga titulares en español e inglés, el índice Fear & Greed, avisa de noticias de riesgo y vigila que los otros bots sigan escribiendo. | Panel → **Noticias** |
 | **Telegram** (`alerts/`) | Mensajes a tu móvil: posiciones abiertas, cierres, resumen diario, noticias de riesgo y alertas del sistema. | Tu Telegram; se configura en Panel → **Ajustes** |
 | **Panel de Firebase** (`web/index.html`) | Página privada (login con tu Google): `https://bot-richy.firebaseapp.com` | Navegador |
@@ -26,13 +27,14 @@ Por eso solo se usa en simulación hasta reunir ~100 trades en vivo (a ~3–7 tr
 
 ## 2. Puesta en marcha en GitHub Actions
 
-Los tres bots corren solos en GitHub (sin tu PC) con estos workflows, que **solo se ejecutan si están en la rama `main`**:
+Los bots corren solos en GitHub (sin tu PC) con estos workflows, que **solo se ejecutan si están en la rama `main`**:
 
 | Workflow | Frecuencia | Qué hace |
 |---|---|---|
 | `richy-bot` | cada hora (:41) | Un ciclo de Richy |
 | `breakout-bot` | cada hora (:23) | Un ciclo de Breakout 4h (solo procesa las velas de 4h nuevas) |
 | `news-bot` | cada 20 min (:11, :31, :51) | Noticias, Fear & Greed, alertas de riesgo y vigilante |
+| `ops-bot` | cada hora (:47) | Portafolio (compuerta de riesgo común), deriva paper vs backtest y salud de los ciclos |
 
 **¿Por qué tan seguido si las velas son de 4 h?** Porque GitHub **no garantiza** los horarios de las tareas programadas: bajo
 carga retrasa o se salta muchas ejecuciones (en las primeras 15 h de este proyecto corrió una sola vez cada bot en vez de
@@ -235,17 +237,61 @@ validación: `python -m research.run_research` y `python -m research.report`.
 
 ## 10. Lo que NO pude verificar desde aquí (hazlo tú)
 
-Probé todo con **simulaciones** (58 pruebas automáticas, una base de datos simulada y un navegador real con Firebase
+Probé todo con **simulaciones** (más de 110 pruebas automáticas, una base de datos simulada y un navegador real con Firebase
 simulado), pero mi entorno no puede alcanzar estos servicios:
 
 - **Telegram real**: el envío se probó con un doble de prueba. La primera prueba real es `python telegram_probar.py`.
 - **Las fuentes RSS reales**: probé el análisis con XML de ejemplo. La prueba real es `python news_bot.py run --dry` o la
   primera ejecución de `news-bot`. Si alguna fuente cambió su dirección, el panel mostrará «no responde».
 - **Firestore real y tu sitio publicado**: la primera ejecución de cada workflow y el `deploy` son la prueba definitiva.
+- **El ciclo `ops-bot` y la compuerta contra tu Firestore real**: se probaron con una base simulada y con el ciclo real de Breakout
+  en archivos locales. La primera ejecución de `ops-bot` (Actions → *Run workflow*) debe crear `portfolio_status/{current,gate,drift,health}`;
+  compruébalo en el panel (tarjetas «Portafolio» y «Deriva») o en Firestore. Hasta que exista la compuerta, los bots operan normal.
 
 ---
 
-## 11. Seguridad
+## 11. Novedades: portafolio, deriva, robustez y filtro de régimen
+
+Detalle y números en `reports/INFORME_MEJORAS.md`. Lo importante:
+
+**Qué cambió en lo que ya corría**
+- **Breakout 4h ahora no abre posiciones si BTC está bajo su media de 200 días** (filtro de régimen). En el laboratorio redujo la
+  caída del último año de −20.5 % a −8.8 %, a cambio de ~14 puntos de retorno en el periodo de diseño. Es un reductor de riesgo,
+  **no crea ganancia**: sigue sin haber evidencia estadística de edge.
+- **Tamaño por volatilidad y por correlación**: implementados y probados, pero **apagados** (empeoraron el último año).
+- **Más pares**: se probó con 10 y empeoró mucho, así que el universo sigue siendo de 5 (`BREAKOUT_SYMS` lo cambia a propósito).
+- **Richy**: el semáforo suma el check «¿Es habilidad o suerte? (PSR)» y un resumen de robustez (Sharpe deflactado, Monte Carlo).
+
+**Workflow nuevo: `ops-bot`** (cada hora, mismo secreto `FIREBASE_SERVICE_ACCOUNT`, no necesita secretos nuevos)
+1. *Portafolio*: calcula un índice combinado 50/50 de Richy y Breakout. Si pierde ≥ 3 % en el día o cae ≥ 15 % desde su pico,
+   escribe una **compuerta** en Firestore (`portfolio_status/gate`) y ambos bots **dejan de abrir posiciones nuevas** (las abiertas
+   siguen con sus stops; no se cierra nada). Se reanuda al día siguiente (pérdida diaria) o al recuperar la mitad de la caída.
+   **Falla abierta**: si el workflow se cae o la compuerta tiene más de 12 h, los bots operan normal.
+2. *Deriva*: con ≥ 20 trades en vivo compara el rendimiento por trade, los aciertos y la caída contra el backtest con la misma
+   configuración (`reports/baseline_breakout.json`) y te avisa por Telegram si se desvía.
+3. *Salud*: avisa si un bot lleva > 6 h sin escribir (cron saltado) o si Breakout lleva > 8 h de retraso en velas (datos pegados).
+
+**Interruptores en el panel** (pestaña Richy → Estrategias; se guardan en Firestore y los bots los leen en su siguiente ciclo)
+- *Breakout 4h: filtro de régimen* — apágalo y vuelve al comportamiento anterior.
+- *Portafolio: frenar entradas* — apágalo y el gestor solo observa y avisa, sin frenar a los bots.
+- También: `BREAKOUT_OVERLAYS=off` (variable de entorno) apaga el filtro sin tocar el panel.
+
+**Ojo con el historial en vivo**: cada cambio de configuración queda en `state["overlay_history"]` con su fecha. No mezcles
+estadísticas de tramos con configuraciones distintas. Si ya tenías una sesión de Breakout en curso, sus trades anteriores
+fueron **sin** filtro; los nuevos, **con** filtro.
+
+**Reproducir los análisis**
+```bash
+python -m research.run_enhancements     # overlays y universo de pares, con PSR/DSR y Monte Carlo (regenera la línea base de deriva)
+python -m research.run_portfolio_mix    # ¿combinar Richy y Breakout ayuda?
+python -m research.parity_check         # laboratorio y paper trader deben abrir/cerrar los mismos trades
+python ops_bot.py run --dry             # prueba local del ciclo de operación, sin nube ni Telegram
+```
+Si regeneras la línea base (`reports/baseline_breakout.json`), súbela al repositorio: la deriva se compara contra ella.
+
+---
+
+## 12. Seguridad
 
 - API keys de Binance **sin permiso de retiro** y restringidas por IP, el día que uses dinero real.
 - La `apiKey` web del panel es pública por diseño; la clave **de servicio** (JSON) y el **token de Telegram** no: solo como

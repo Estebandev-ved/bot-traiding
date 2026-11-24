@@ -141,7 +141,11 @@ def live(a):
             break
         flags = sink.strategy_flags(["trend", "meanrev", "funding"], defaults={"funding": False})
         sent = news.check() if news else {"pause": False, "reasons": [], "fng": None, "headlines": [], "ok": False}
-        res = session.update(closed, build(a, closed, enabled=flags), pause=sent["pause"])
+        from ops.portfolio import gate_allows
+        allow, gate_why = gate_allows(getattr(sink, "get_gate", lambda: None)(), time.time())
+        if not allow:
+            print(f"[portafolio] entradas nuevas en pausa: {gate_why}")
+        res = session.update(closed, build(a, closed, enabled=flags), pause=sent["pause"], block_new=not allow)
         eq = res["equity"]
         done_until = session.state.get("eq_sent", 0)                 # último punto de capital ya enviado (persiste entre corridas)
         new_pts = [(ts.timestamp(), v) for ts, v in eq.items() if ts.timestamp() > done_until]
@@ -153,9 +157,14 @@ def live(a):
                 sink.trade(t); sent_tr.add(key)
         m, rk, op = res["metrics"], res["risk"], res["open"]
         card = scorecard(res, closed, pd.Timestamp(session.state["start"]))
-        sink.status(**_clean(dict(symbol=a.symbol, mode="paper", equity=float(eq.iloc[-1]), total_return=m["total_return"],
+        eq_now = float(eq.iloc[-1])
+        sym_key = a.symbol.replace("/", "")
+        expo = abs(float(op["qty"]) * float(op["entry"])) / eq_now if op and eq_now > 0 else 0.0
+        sink.status(**_clean(dict(symbol=a.symbol, mode="paper", equity=eq_now, total_return=m["total_return"],
                     max_drawdown=m["max_drawdown"], trades=m["trades"], killed=rk["killed"], kill_reason=rk["kill_reason"],
-                    halted_today=rk["halted_today"], position=op, scorecard=card, sentiment=sent)))
+                    halted_today=rk["halted_today"], position=op, scorecard=card, sentiment=sent,
+                    equity0=float(session.state["equity0"]), exposure=expo, assets={sym_key: expo} if expo else {},
+                    gate={"allow": allow, "reason": gate_why})))
         try:                                                                 # Telegram: nunca debe romper el ciclo
             tgs = session.state.setdefault("tg", {})
             nflags = sink.strategy_flags(list(DEFAULT_FLAGS), defaults=DEFAULT_FLAGS)
